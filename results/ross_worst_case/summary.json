@@ -28,7 +28,9 @@
     "skipped_size_zero": 0,
     "setup_broken_before_trigger": 0,
     "rejected_rr": 0,
-    "adds": 0
+    "adds": 0,
+    "ambiguous_position": 1,
+    "ambiguous_position_resolved": 1
   },
   "notes": [
     "催化剂判定方式: news"

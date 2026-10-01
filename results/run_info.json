@@ -1,7 +1,7 @@
 {
   "start": "2024-10-01",
   "end": "2026-09-30",
-  "generated": "2026-10-01T08:34:48.364403+00:00",
+  "generated": "2026-10-01T09:14:01.347954+00:00",
   "minute_files": 501,
   "news_files": 501,
   "float_table": true,
@@ -11,5 +11,7 @@
     "min_rvol": 5.0,
     "min_price": 2.0,
     "max_price": 20.0
-  }
+  },
+  "ambiguous_events": 146,
+  "ambiguous_resolved_by_ticks": 146
 }
