@@ -47,8 +47,10 @@ class AlpacaClient:
         self.secret = secret or os.environ.get("APCA_API_SECRET_KEY")
         if not self.key_id or not self.secret:
             raise AlpacaError("缺少 APCA_API_KEY_ID / APCA_API_SECRET_KEY（在 Replit Secrets 里设置）")
-        self.trade_url = trade_url or os.environ.get("APCA_API_BASE_URL",
-                                                     "https://paper-api.alpaca.markets")
+        self.trade_url = (trade_url or os.environ.get("APCA_API_BASE_URL",
+                                                      "https://paper-api.alpaca.markets")).rstrip("/")
+        if self.trade_url.endswith("/v2"):          # 控制台显示的 Endpoint 带 /v2，这里统一去掉
+            self.trade_url = self.trade_url[:-3]
         self.s = session or requests.Session()
         self.rl = RateLimiter(per_minute)
         self.max_retries = max_retries
