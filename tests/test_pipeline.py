@@ -277,3 +277,17 @@ def test_incremental_download_after_prescreen_change(tmp_path):
         assert set(g["symbol"]) <= set(man)
     dq = json.loads((tmp_path / "r" / "data_quality.json").read_text())
     assert dq["signature"]["mode"] == "volume"
+
+
+def test_extending_start_redownloads_daily_but_reuses_minutes(tmp_path):
+    import pipeline as pl
+    fa = FakeAlpaca(seed=9)
+    kw = dict(alpaca=fa, sec=FakeSec(fa.syms), dq_samples=1, batch_symbols=4)
+    pl.Pipeline(tmp_path / "d", tmp_path / "r", str(fa.days[3]), str(fa.days[-1]), **kw).run_all()
+    m_before, d_before = fa.calls["1Min"], fa.calls["1Day"]
+    pl.Pipeline(tmp_path / "d", tmp_path / "r", str(fa.days[0]), str(fa.days[-1]), **kw).run_all()
+    assert fa.calls["1Day"] > d_before                          # 新区间重下日线
+    cands = pd.read_parquet(tmp_path / "d" / "candidates.parquet")
+    assert cands["date"].min() == fa.days[0]
+    files = {f.stem for f in (tmp_path / "d" / "minute").glob("*.parquet")}
+    assert {str(d) for d in cands["date"].unique()} <= files

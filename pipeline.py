@@ -52,6 +52,8 @@ RUNS = {
     "ross_no_catalyst": _BASE["ross"].with_(require_catalyst=False),
     # 诊断：离场信号是帮忙还是添乱
     "ross_no_first_red": _BASE["ross"].with_(exit_on_first_red_before_t1=False),
+    # 样本内发现"07:00–08:00 入场接近打平"，固定成一组配置，用更早年份做样本外检验
+    "ross_7to8": _BASE["ross"].with_(entry_end="08:00"),
     "ross_bracket_only": _BASE["ross"].with_(
         exit_on_first_red_before_t1=False, sig_stall=False, sig_bid_pressure=False,
         sig_topping_tail=False, sig_rejections=False, sig_volume_divergence=False),
@@ -87,6 +89,9 @@ class Pipeline:
                           "min_price": min(c.min_price for c in cfgs),
                           "max_price": max(c.max_price for c in cfgs)}
         self.signature = {"start": start, "end": end, **self.prescreen}
+        # 日线按区间分目录：改起止日期会重新下载日线，分钟线/新闻按日期文件复用
+        self.daily_start = (pd.Timestamp(start) - pd.Timedelta(days=75)).strftime("%Y-%m-%d")
+        self.daily_dir = self.d / "daily" / f"{self.daily_start}_{end}"
         self.dq_samples = dq_samples
         self.batch_symbols = batch_symbols
         self.minute_chunk = minute_chunk
@@ -121,9 +126,9 @@ class Pipeline:
     def step_daily(self, force=False):
         u = self.step_universe()
         syms = sorted(u["symbol"])
-        dstart = (pd.Timestamp(self.start) - pd.Timedelta(days=75)).strftime("%Y-%m-%d")
-        out = self.d / "daily"
-        out.mkdir(exist_ok=True)
+        out = self.daily_dir
+        out.mkdir(parents=True, exist_ok=True)
+        dstart = self.daily_start
         n = (len(syms) + self.batch_symbols - 1) // self.batch_symbols
         for i in range(n):
             batch = syms[i * self.batch_symbols:(i + 1) * self.batch_symbols]
@@ -139,7 +144,7 @@ class Pipeline:
     def load_daily_bars(self, kind: str, symbols=None) -> pd.DataFrame:
         cols = ["symbol", "ts", "high", "low", "close", "volume"] if kind == "raw" \
             else ["symbol", "ts", "close"]
-        files = sorted((self.d / "daily").glob(f"{kind}_*.parquet"))
+        files = sorted(self.daily_dir.glob(f"{kind}_*.parquet"))
         parts = []
         for f in files:
             x = pd.read_parquet(f, columns=cols)
@@ -153,7 +158,7 @@ class Pipeline:
     def trading_days(self) -> list:
         """区间内所有交易日（含没有交易信号的日子，算日度夏普要用）。"""
         days = set()
-        for f in sorted((self.d / "daily").glob("raw_*.parquet")):
+        for f in sorted(self.daily_dir.glob("raw_*.parquet")):
             ts = pd.read_parquet(f, columns=["ts"])["ts"]
             days |= set(ts.dt.tz_convert(ET).dt.date.unique())
         s, e = pd.Timestamp(self.start).date(), pd.Timestamp(self.end).date()
