@@ -47,6 +47,7 @@ RUNS = {
     "ross_no_vol_div": _BASE["ross"].with_(sig_volume_divergence=False),
     "ross_top3": _BASE["ross"].with_(top_n_gainers=3),
     "ross_pullback2": _BASE["ross"].with_(max_pullback_number=2),
+    "ross_pb_window": _BASE["ross"].with_(count_pullbacks_from="window"),
     "ross_no_catalyst": _BASE["ross"].with_(require_catalyst=False),
 }
 
@@ -64,7 +65,7 @@ def et_iso(date, hhmm: str) -> str:
 
 class Pipeline:
     def __init__(self, data_dir: str | Path, results_dir: str | Path, start: str, end: str,
-                 alpaca=None, sec=None, cand_min_pct: float = 0.05, cand_min_rvol: float = 2.0,
+                 alpaca=None, sec=None, prescreen: str = "volume",
                  dq_samples: int = 20, batch_symbols: int = 100, minute_chunk: int = 50):
         self.d = Path(data_dir)
         self.r = Path(results_dir)
@@ -72,7 +73,14 @@ class Pipeline:
         self.r.mkdir(parents=True, exist_ok=True)
         self.start, self.end = start, end
         self._alp, self._sec = alpaca, sec
-        self.cand_min_pct, self.cand_min_rvol = cand_min_pct, cand_min_rvol
+        cfgs = list(RUNS.values())
+        # 预筛取所有配置里最宽松的阈值，保证任何一组配置能选中的票都被下载
+        self.prescreen = {"mode": prescreen,
+                          "min_pct": min(c.min_pct_change for c in cfgs),
+                          "min_rvol": min(c.min_rvol for c in cfgs),
+                          "min_price": min(c.min_price for c in cfgs),
+                          "max_price": max(c.max_price for c in cfgs)}
+        self.signature = {"start": start, "end": end, **self.prescreen}
         self.dq_samples = dq_samples
         self.batch_symbols = batch_symbols
         self.minute_chunk = minute_chunk
@@ -145,35 +153,56 @@ class Pipeline:
         s, e = pd.Timestamp(self.start).date(), pd.Timestamp(self.end).date()
         return sorted(d for d in days if s <= d <= e)
 
+    def _meta_ok(self, path: Path) -> bool:
+        return path.exists() and json.loads(path.read_text()) == self.signature
+
     def step_candidates(self, force=False) -> pd.DataFrame:
-        p = self.d / "candidates.parquet"
-        if p.exists() and not force:
+        p, meta = self.d / "candidates.parquet", self.d / "candidates.meta.json"
+        if p.exists() and self._meta_ok(meta) and not force:
             return pd.read_parquet(p)
         raw, adj = self.load_daily_bars("raw"), self.load_daily_bars("adj")
         table = prepare_daily_split_aware(raw, adj)
-        cands = candidate_days(raw, table, min_pct=self.cand_min_pct,
-                               min_rvol=self.cand_min_rvol)
+        ps = self.prescreen
+        cands = candidate_days(raw, table, min_pct=ps["min_pct"], min_rvol=ps["min_rvol"],
+                               min_price=ps["min_price"], max_price=ps["max_price"],
+                               mode=ps["mode"])
         s, e = pd.Timestamp(self.start).date(), pd.Timestamp(self.end).date()
-        cands = cands[(cands["date"] >= s) & (cands["date"] <= e)]
+        cands = cands[(cands["date"] >= s) & (cands["date"] <= e)].reset_index(drop=True)
         cands.to_parquet(p, index=False)
-        log.info("候选: %d 个股票×交易日，%d 个交易日", len(cands), cands["date"].nunique())
+        meta.write_text(json.dumps(self.signature))
+        log.info("候选: %d 个股票×交易日，%d 个交易日（预筛 %s）", len(cands),
+                 cands["date"].nunique(), ps)
         return cands
 
     def _per_date(self, sub: str, fetch, force=False):
+        """
+        按日期下载，增量：每个日期旁边存一份 manifest，记录已经请求过的股票。
+        候选名单变了（例如改了预筛），只补下新增的股票。
+        """
         cands = self.step_candidates()
         out = self.d / sub
         out.mkdir(exist_ok=True)
         dates = sorted(cands["date"].unique())
         for k, (date, g) in enumerate(cands.groupby("date", sort=True)):
-            p = out / f"{date}.parquet"
-            if p.exists() and not force:
+            p, man = out / f"{date}.parquet", out / f"{date}.json"
+            want = set(g["symbol"].unique())
+            have = pd.read_parquet(p) if (p.exists() and not force) else None
+            if have is not None:
+                done = set(json.loads(man.read_text())) if man.exists() else set(have["symbol"])
+            else:
+                done = set()
+            need = sorted(want - done)
+            if not need:
                 continue
-            syms = sorted(g["symbol"].unique())
-            parts = [fetch(date, syms[i:i + self.minute_chunk])
-                     for i in range(0, len(syms), self.minute_chunk)]
-            pd.concat(parts, ignore_index=True).to_parquet(p, index=False)
+            parts = [fetch(date, need[i:i + self.minute_chunk])
+                     for i in range(0, len(need), self.minute_chunk)]
+            new = pd.concat(parts, ignore_index=True)
+            if have is not None and len(have):
+                new = pd.concat([have, new], ignore_index=True) if len(new) else have
+            new.to_parquet(p, index=False)
+            man.write_text(json.dumps(sorted(done | set(need))))
             if k % 20 == 0:
-                log.info("%s %s (%d/%d)", sub, date, k + 1, len(dates))
+                log.info("%s %s (%d/%d) +%d 只", sub, date, k + 1, len(dates), len(need))
 
     def step_minute(self, force=False):
         self._per_date("minute", lambda d, s: self.alp.bars(
@@ -186,25 +215,27 @@ class Pipeline:
         self._per_date("news", fetch, force)
 
     def step_sec(self, force=False):
-        p = self.d / "float.parquet"
-        if p.exists() and not force:
+        p, meta = self.d / "float.parquet", self.d / "float.meta.json"
+        syms = set(self.step_candidates()["symbol"].unique())
+        if p.exists() and meta.exists() and not force and syms <= set(json.loads(meta.read_text())):
             return
-        from rossbt.sec import shares_table
-        cands = self.step_candidates()
-        tbl, stats = shares_table(self.sec, cands["symbol"].unique())
+        from rossbt.sec import shares_table          # 公司数据有本地缓存，重算很快
+        tbl, stats = shares_table(self.sec, syms)
         tbl.to_parquet(p, index=False)
+        meta.write_text(json.dumps(sorted(syms)))
         (self.r / "sec_coverage.json").write_text(json.dumps(stats, indent=2))
 
     # ------------------------------------------------------------------ #
     def step_dq(self, force=False):
         """数据质量：日线是否含盘前盘后、预筛会不会漏掉只在盘前拉升的票、已退市覆盖、股本覆盖。"""
         p = self.r / "data_quality.json"
-        if p.exists() and not force:
+        if p.exists() and not force and json.loads(p.read_text()).get("signature") == self.signature:
             return
         cands = self.step_candidates()
         raw = self.load_daily_bars("raw")
         u = self.step_universe()
-        rep: dict = {"candidates": int(len(cands)), "candidate_dates": int(cands["date"].nunique())}
+        rep: dict = {"signature": self.signature, "candidates": int(len(cands)),
+                     "candidate_dates": int(cands["date"].nunique())}
 
         inactive = set(u.loc[u["status"] == "inactive", "symbol"])
         with_bars = set(raw["symbol"].unique())
@@ -304,10 +335,9 @@ class Pipeline:
         ov = pd.DataFrame(overview)
         ov.to_csv(self.r / "overview.csv", index=False)
         (self.r / "run_info.json").write_text(json.dumps({
-            "start": self.start, "end": self.end, "generated": dt.datetime.utcnow().isoformat() + "Z",
+            "start": self.start, "end": self.end, "generated": dt.datetime.now(dt.timezone.utc).isoformat(),
             "minute_files": len(files), "news_files": len(news_files),
-            "float_table": fpath.exists(), "prescreen": {"min_pct": self.cand_min_pct,
-                                                          "min_rvol": self.cand_min_rvol}},
+            "float_table": fpath.exists(), "prescreen": self.prescreen},
             indent=2))
         return ov
 
@@ -341,8 +371,7 @@ def main(argv=None):
     ap.add_argument("--end", default=yesterday)
     ap.add_argument("--data-dir", default="data")
     ap.add_argument("--results-dir", default="results")
-    ap.add_argument("--cand-min-pct", type=float, default=0.05)
-    ap.add_argument("--cand-min-rvol", type=float, default=2.0)
+    ap.add_argument("--prescreen", choices=["volume", "price"], default="volume")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--push", action="store_true", help="完成后 git add/commit/push results/")
     a = ap.parse_args(argv)
@@ -356,7 +385,7 @@ def main(argv=None):
                         handlers=[logging.StreamHandler(sys.stdout),
                                   logging.FileHandler(Path(a.data_dir) / "pipeline.log")])
     p = Pipeline(a.data_dir, a.results_dir, a.start, a.end,
-                 cand_min_pct=a.cand_min_pct, cand_min_rvol=a.cand_min_rvol,
+                 prescreen=a.prescreen,
                  dq_samples=5 if a.step == "smoke" else 20)
     log.info("区间 %s → %s，数据目录 %s", a.start, a.end, a.data_dir)
 

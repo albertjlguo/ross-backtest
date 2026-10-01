@@ -21,8 +21,8 @@
    python pipeline.py all --start 2023-01-01 --push   # 拉长区间
    ```
 
-   全量预计 1–2 小时（下载约 40 分钟，受 Alpaca 免费额度每分钟 200 次限制；9 组回测约 40 分钟）。
-   每一步都会落盘，中断后重跑会自动跳过已完成的部分。
+   全量预计 1–2 小时（下载约 40 分钟，受 Alpaca 免费额度每分钟 200 次限制；10 组回测约 45 分钟）。
+   每一步都会落盘，中断后重跑会自动跳过已完成的部分；改了预筛规则只会补下新增的股票。
    `--push` 需要先在 Replit 的 Git 面板里连好 GitHub 账户。
 
 ### 流水线步骤
@@ -31,22 +31,23 @@
 |---|---|---|
 | `universe` | Alpaca 资产列表，含已停止交易的股票；去掉权证、单位、优先股 | `data/universe.parquet` |
 | `daily` | 全市场日线，原始价和拆股调整价各一份 | `data/daily/` |
-| `candidates` | 用日线预筛：最高价较昨收涨 ≥5%、量 ≥2 倍 ADV30、价格区间有交集（比五条件宽松，只用来缩小下载量） | `data/candidates.parquet` |
+| `candidates` | 用日线预筛，只用必要条件：全天量 ≥ 0.9×5×ADV30、昨收 ≤ $18.18。不用日线最高价，因为 Alpaca 日线最高价不含盘前 | `data/candidates.parquet` |
 | `minute` | 候选股票当天 04:00–12:00 的 1 分钟线（全市场合并数据），按日期批量请求 | `data/minute/日期.parquet` |
 | `news` | 候选股票前一天 04:00 到当天 12:00 的新闻 | `data/news/` |
 | `sec` | SEC 财报封面上的已发行股数，按申报日期对齐 | `data/float.parquet`、`results/sec_coverage.json` |
 | `dq` | 数据质量检查，见下 | `results/data_quality.json` |
-| `backtest` | 跑 9 组配置 | `results/<配置名>/`、`results/overview.csv` |
+| `backtest` | 跑 10 组配置 | `results/<配置名>/`、`results/overview.csv` |
 
-### 9 组配置
+### 10 组配置
 
 - 三套主预设：`ross`、`summary`、`aggressive`。
-- 六组稳健性检验，各自只改一项：
+- 七组稳健性检验，各自只改一项：
   - 最坏成交假设
   - 滑点 30bps
   - 关掉"价涨量缩"信号
   - 只做涨幅榜前 3
   - 允许第二次回调
+  - 回调从 07:00 起计数（而不是从入选那一刻起）
   - 不要求新闻
 
 **解读结果前先看 `results/data_quality.json`**，它回答以下问题：
@@ -62,7 +63,7 @@
 ```bash
 pip install -r requirements.txt
 python run_backtest.py --demo         # 合成数据跑通
-python -m pytest -q tests             # 35 个测试：手算场景、无未来函数、模拟接口的流水线
+python -m pytest -q tests             # 37 个测试：手算场景、无未来函数、模拟接口的流水线
 ```
 
 > 合成数据只用来验证代码逻辑。它的拉升段是人为造的，所以 demo 的胜率没有任何参考意义。

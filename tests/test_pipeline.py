@@ -229,3 +229,32 @@ def test_pipeline_end_to_end_and_resume(tmp_path):
     before = dict(fa.calls)
     p.run_all()
     assert dict(fa.calls) == before
+
+
+def test_volume_prescreen_catches_premarket_only_spike():
+    from rossbt.data import candidate_days
+    d = pd.Timestamp("2026-03-10").date()
+    daily = pd.DataFrame({"date": [d, d, d], "symbol": ["PM", "QUIET", "BIG"],
+                          "prev_close": [3.0, 3.0, 25.0], "adv30": [1e5, 1e5, 1e5]})
+    # PM：盘前冲到 +60% 后回落，日线最高价（不含盘前）只 +3%，但全天量 8 倍
+    bars = pd.DataFrame({"date": [d, d, d], "symbol": ["PM", "QUIET", "BIG"],
+                         "high": [3.09, 3.05, 30.0], "low": [2.9, 2.95, 24.0],
+                         "volume": [8e5, 1.5e5, 9e5]})
+    assert set(candidate_days(bars, daily, mode="price")["symbol"]) == set()
+    assert set(candidate_days(bars, daily, mode="volume")["symbol"]) == {"PM"}   # BIG 昨收太高
+
+
+def test_incremental_download_after_prescreen_change(tmp_path):
+    import pipeline as pl
+    fa = FakeAlpaca(seed=5)
+    start, end = str(fa.days[0]), str(fa.days[-1])
+    kw = dict(alpaca=fa, sec=FakeSec(fa.syms), dq_samples=2, batch_symbols=4)
+    pl.Pipeline(tmp_path / "d", tmp_path / "r", start, end, prescreen="price", **kw).run_all()
+    p2 = pl.Pipeline(tmp_path / "d", tmp_path / "r", start, end, prescreen="volume", **kw)
+    p2.run_all()
+    cands = pd.read_parquet(tmp_path / "d" / "candidates.parquet")
+    for date, g in cands.groupby("date"):
+        man = json.loads((tmp_path / "d" / "minute" / f"{date}.json").read_text())
+        assert set(g["symbol"]) <= set(man)
+    dq = json.loads((tmp_path / "r" / "data_quality.json").read_text())
+    assert dq["signature"]["mode"] == "volume"

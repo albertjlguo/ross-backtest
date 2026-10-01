@@ -171,23 +171,33 @@ def prepare_daily_split_aware(raw: pd.DataFrame, adj: pd.DataFrame,
 
 def candidate_days(daily_bars_ext: pd.DataFrame, daily: pd.DataFrame,
                    min_pct: float = 0.10, min_rvol: float = 5.0,
-                   min_price: float = 2.0, max_price: float = 20.0) -> pd.DataFrame:
+                   min_price: float = 2.0, max_price: float = 20.0,
+                   mode: str = "volume", vol_tolerance: float = 0.9) -> pd.DataFrame:
     """
-    预筛：决定要下载哪些 (date, symbol) 的分钟线，避免拉全市场。
+    预筛：决定要下载哪些 (date, symbol) 的分钟线，避免拉全市场。只缩小下载范围，不参与交易判断。
 
-    只用来缩小下载范围，不参与交易判断。条件全部是"日内某一刻满足五条件"的必要条件：
-      当日最高价 / 昨收 - 1 ≥ min_pct、当日总量 ≥ min_rvol × adv30、
-      当日最低价 ≤ max_price 且最高价 ≥ min_price。
-    注意：daily_bars_ext 的 high / volume 必须包含盘前，否则会漏掉只在盘前拉升的票。
+    mode="volume"（默认）——只用"日内任何时刻满足五条件"的必要条件，不会漏票：
+      当日总量 ≥ vol_tolerance × min_rvol × ADV30
+          入场时的累计量（04:00 起）≥ 5×ADV30，而全天量 ≥ 入场时累计量。
+          前提是日线成交量含盘前盘后（Alpaca 实测成立，数据质量报告会复核）。
+      昨收 × (1 + min_pct) ≤ max_price
+          否则涨够 10% 时价格必然高于上限。
+      不用日线最高价：Alpaca 日线最高价不含盘前，按它筛会漏掉只在盘前拉升又回落的票。
+
+    mode="price"——旧逻辑：日线最高价较昨收涨 ≥min_pct、量 ≥min_rvol×ADV30、价格区间有交集。
     """
     x = daily_bars_ext.copy()
     x["date"] = pd.to_datetime(x["date"]).dt.date
     x["symbol"] = x["symbol"].astype(str)
     x = x.merge(daily[["date", "symbol", "prev_close", "adv30"]], on=["date", "symbol"])
-    m = (
-        (x["high"] / x["prev_close"] - 1 >= min_pct)
-        & (x["volume"] >= min_rvol * x["adv30"])
-        & (x["low"] <= max_price)
-        & (x["high"] >= min_price)
-    )
+    if mode == "volume":
+        m = ((x["volume"] >= vol_tolerance * min_rvol * x["adv30"])
+             & (x["prev_close"] * (1 + min_pct) <= max_price))
+    elif mode == "price":
+        m = ((x["high"] / x["prev_close"] - 1 >= min_pct)
+             & (x["volume"] >= min_rvol * x["adv30"])
+             & (x["low"] <= max_price)
+             & (x["high"] >= min_price))
+    else:
+        raise ValueError(mode)
     return x.loc[m, ["date", "symbol"]].reset_index(drop=True)
