@@ -3,3 +3,5 @@ __pycache__/
 data/
 data_smoke/
 *.log
+data_trend/
+results_trend/*.log

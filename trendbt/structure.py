@@ -92,7 +92,10 @@ def fib_anchors(df: pd.DataFrame, p: StructParams = StructParams()) -> pd.DataFr
                 if not (w0 <= li < hi_i):
                     continue
                 # 低点本身必须在 H 确认时已经被确认（它在 H 之前，自然成立）
-                kk = np.nanmin(K[max(0, li - 1):li + 2]) if li < n else np.nan
+                seg_k = K[max(0, li - 1):li + 2]
+                if np.all(np.isnan(seg_k)):
+                    continue
+                kk = np.nanmin(seg_k)
                 mm = np.nanmin(macd[max(0, li - 1):li + 2])
                 hh = np.nanmin(hist[max(0, li - 1):li + 2])
                 macd_low = mm < 0 or (p.macd_rule == "neg_or_hist" and hh < 0)
