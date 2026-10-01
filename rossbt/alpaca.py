@@ -155,3 +155,23 @@ class AlpacaClient:
         df = pd.DataFrame(rows, columns=["symbol", "ts", "price", "size", "conditions", "id"])
         df["ts"] = pd.to_datetime(df["ts"], utc=True, format="ISO8601")
         return df
+
+    def crypto_bars(self, symbols: Iterable[str], timeframe: str, start: str, end: str,
+                    limit: int = 10000) -> pd.DataFrame:
+        """加密货币 K 线（v1beta3，美国交易场所），symbol 形如 BTC/USD。"""
+        symbols = list(symbols)
+        params = {"symbols": ",".join(symbols), "timeframe": timeframe, "start": start,
+                  "end": end, "limit": limit, "sort": "asc"}
+        rows = []
+        while True:
+            js = self._get(f"{DATA_URL}/v1beta3/crypto/us/bars", params)
+            for sym, bars in (js.get("bars") or {}).items():
+                for b in bars or []:
+                    rows.append((sym, b["t"], b["o"], b["h"], b["l"], b["c"], b["v"]))
+            tok = js.get("next_page_token")
+            if not tok:
+                break
+            params = {**params, "page_token": tok}
+        df = pd.DataFrame(rows, columns=["symbol", "ts", "open", "high", "low", "close", "volume"])
+        df["ts"] = pd.to_datetime(df["ts"], utc=True, format="ISO8601")
+        return df

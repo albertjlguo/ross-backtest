@@ -1,0 +1,567 @@
+{
+ "_note": "stocks 为 SPY/QQQ 前 20 大权重股并集 + 银行股（按近期权重人工挑选，可自行增删）。今天的大权重股都是过去涨得最多的，存在幸存者偏差，结果要和同一只股票的买入持有对比来看。",
+ "crypto": {
+  "BTC": {
+   "yahoo": "BTC-USD",
+   "coinmetrics": "btc",
+   "alpaca_crypto": "BTC/USD",
+   "options": true,
+   "cost_bps": 10.0,
+   "ann_days": 365
+  },
+  "ETH": {
+   "yahoo": "ETH-USD",
+   "coinmetrics": "eth",
+   "alpaca_crypto": "ETH/USD",
+   "options": true,
+   "cost_bps": 10.0,
+   "ann_days": 365
+  },
+  "LTC": {
+   "yahoo": "LTC-USD",
+   "coinmetrics": "ltc",
+   "alpaca_crypto": "LTC/USD",
+   "options": false,
+   "cost_bps": 10.0,
+   "ann_days": 365
+  },
+  "XRP": {
+   "yahoo": "XRP-USD",
+   "coinmetrics": "xrp",
+   "alpaca_crypto": "XRP/USD",
+   "options": false,
+   "cost_bps": 10.0,
+   "ann_days": 365
+  },
+  "DOGE": {
+   "yahoo": "DOGE-USD",
+   "coinmetrics": "doge",
+   "alpaca_crypto": "DOGE/USD",
+   "options": false,
+   "cost_bps": 10.0,
+   "ann_days": 365
+  },
+  "ADA": {
+   "yahoo": "ADA-USD",
+   "coinmetrics": "ada",
+   "options": false,
+   "cost_bps": 10.0,
+   "ann_days": 365
+  },
+  "BNB": {
+   "yahoo": "BNB-USD",
+   "options": false,
+   "cost_bps": 10.0,
+   "ann_days": 365
+  },
+  "SOL": {
+   "yahoo": "SOL-USD",
+   "alpaca_crypto": "SOL/USD",
+   "options": false,
+   "cost_bps": 10.0,
+   "ann_days": 365
+  }
+ },
+ "etf_index": {
+  "SPY": {
+   "yahoo": "SPY",
+   "stooq": "spy.us",
+   "alpaca": "SPY",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "QQQ": {
+   "yahoo": "QQQ",
+   "stooq": "qqq.us",
+   "alpaca": "QQQ",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "DIA": {
+   "yahoo": "DIA",
+   "stooq": "dia.us",
+   "alpaca": "DIA",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "IWM": {
+   "yahoo": "IWM",
+   "stooq": "iwm.us",
+   "alpaca": "IWM",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "MDY": {
+   "yahoo": "MDY",
+   "stooq": "mdy.us",
+   "alpaca": "MDY",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "EFA": {
+   "yahoo": "EFA",
+   "stooq": "efa.us",
+   "alpaca": "EFA",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "EEM": {
+   "yahoo": "EEM",
+   "stooq": "eem.us",
+   "alpaca": "EEM",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "TLT": {
+   "yahoo": "TLT",
+   "stooq": "tlt.us",
+   "alpaca": "TLT",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "IEF": {
+   "yahoo": "IEF",
+   "stooq": "ief.us",
+   "alpaca": "IEF",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "VNQ": {
+   "yahoo": "VNQ",
+   "stooq": "vnq.us",
+   "alpaca": "VNQ",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "GLD": {
+   "yahoo": "GLD",
+   "stooq": "gld.us",
+   "alpaca": "GLD",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "SLV": {
+   "yahoo": "SLV",
+   "stooq": "slv.us",
+   "alpaca": "SLV",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "USO": {
+   "yahoo": "USO",
+   "stooq": "uso.us",
+   "alpaca": "USO",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "XLK": {
+   "yahoo": "XLK",
+   "stooq": "xlk.us",
+   "alpaca": "XLK",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "XLF": {
+   "yahoo": "XLF",
+   "stooq": "xlf.us",
+   "alpaca": "XLF",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "XLE": {
+   "yahoo": "XLE",
+   "stooq": "xle.us",
+   "alpaca": "XLE",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "XLV": {
+   "yahoo": "XLV",
+   "stooq": "xlv.us",
+   "alpaca": "XLV",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "XLY": {
+   "yahoo": "XLY",
+   "stooq": "xly.us",
+   "alpaca": "XLY",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "XLP": {
+   "yahoo": "XLP",
+   "stooq": "xlp.us",
+   "alpaca": "XLP",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "XLI": {
+   "yahoo": "XLI",
+   "stooq": "xli.us",
+   "alpaca": "XLI",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "XLB": {
+   "yahoo": "XLB",
+   "stooq": "xlb.us",
+   "alpaca": "XLB",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "XLU": {
+   "yahoo": "XLU",
+   "stooq": "xlu.us",
+   "alpaca": "XLU",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "SMH": {
+   "yahoo": "SMH",
+   "stooq": "smh.us",
+   "alpaca": "SMH",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "SPX": {
+   "yahoo": "^GSPC",
+   "stooq": "^spx",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "NDX": {
+   "yahoo": "^NDX",
+   "stooq": "^ndx",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "RUT": {
+   "yahoo": "^RUT",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "DJI": {
+   "yahoo": "^DJI",
+   "stooq": "^dji",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  }
+ },
+ "commod_fx": {
+  "GOLD": {
+   "yahoo": "GC=F",
+   "stooq": "gc.f",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "SILVER": {
+   "yahoo": "SI=F",
+   "stooq": "si.f",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "CRUDE": {
+   "yahoo": "CL=F",
+   "stooq": "cl.f",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "COPPER": {
+   "yahoo": "HG=F",
+   "stooq": "hg.f",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "NATGAS": {
+   "yahoo": "NG=F",
+   "stooq": "ng.f",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "CORN": {
+   "yahoo": "ZC=F",
+   "stooq": "zc.f",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "DXY": {
+   "yahoo": "DX-Y.NYB",
+   "stooq": "dx.f",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "EURUSD": {
+   "yahoo": "EURUSD=X",
+   "stooq": "eurusd",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "USDJPY": {
+   "yahoo": "JPY=X",
+   "stooq": "usdjpy",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "GBPUSD": {
+   "yahoo": "GBPUSD=X",
+   "stooq": "gbpusd",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  },
+  "AUDUSD": {
+   "yahoo": "AUDUSD=X",
+   "stooq": "audusd",
+   "options": false,
+   "cost_bps": 2.0,
+   "ann_days": 252
+  }
+ },
+ "stocks": {
+  "AAPL": {
+   "yahoo": "AAPL",
+   "stooq": "aapl.us",
+   "alpaca": "AAPL",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "MSFT": {
+   "yahoo": "MSFT",
+   "stooq": "msft.us",
+   "alpaca": "MSFT",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "NVDA": {
+   "yahoo": "NVDA",
+   "stooq": "nvda.us",
+   "alpaca": "NVDA",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "AMZN": {
+   "yahoo": "AMZN",
+   "stooq": "amzn.us",
+   "alpaca": "AMZN",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "GOOGL": {
+   "yahoo": "GOOGL",
+   "stooq": "googl.us",
+   "alpaca": "GOOGL",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "META": {
+   "yahoo": "META",
+   "stooq": "meta.us",
+   "alpaca": "META",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "AVGO": {
+   "yahoo": "AVGO",
+   "stooq": "avgo.us",
+   "alpaca": "AVGO",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "TSLA": {
+   "yahoo": "TSLA",
+   "stooq": "tsla.us",
+   "alpaca": "TSLA",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "BRK-B": {
+   "yahoo": "BRK-B",
+   "stooq": "brk.b.us",
+   "alpaca": "BRK.B",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "JPM": {
+   "yahoo": "JPM",
+   "stooq": "jpm.us",
+   "alpaca": "JPM",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "LLY": {
+   "yahoo": "LLY",
+   "stooq": "lly.us",
+   "alpaca": "LLY",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "V": {
+   "yahoo": "V",
+   "stooq": "v.us",
+   "alpaca": "V",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "MA": {
+   "yahoo": "MA",
+   "stooq": "ma.us",
+   "alpaca": "MA",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "XOM": {
+   "yahoo": "XOM",
+   "stooq": "xom.us",
+   "alpaca": "XOM",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "WMT": {
+   "yahoo": "WMT",
+   "stooq": "wmt.us",
+   "alpaca": "WMT",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "COST": {
+   "yahoo": "COST",
+   "stooq": "cost.us",
+   "alpaca": "COST",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "NFLX": {
+   "yahoo": "NFLX",
+   "stooq": "nflx.us",
+   "alpaca": "NFLX",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "ORCL": {
+   "yahoo": "ORCL",
+   "stooq": "orcl.us",
+   "alpaca": "ORCL",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "JNJ": {
+   "yahoo": "JNJ",
+   "stooq": "jnj.us",
+   "alpaca": "JNJ",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "PG": {
+   "yahoo": "PG",
+   "stooq": "pg.us",
+   "alpaca": "PG",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "HD": {
+   "yahoo": "HD",
+   "stooq": "hd.us",
+   "alpaca": "HD",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "UNH": {
+   "yahoo": "UNH",
+   "stooq": "unh.us",
+   "alpaca": "UNH",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "AMD": {
+   "yahoo": "AMD",
+   "stooq": "amd.us",
+   "alpaca": "AMD",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "BAC": {
+   "yahoo": "BAC",
+   "stooq": "bac.us",
+   "alpaca": "BAC",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "WFC": {
+   "yahoo": "WFC",
+   "stooq": "wfc.us",
+   "alpaca": "WFC",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  },
+  "GS": {
+   "yahoo": "GS",
+   "stooq": "gs.us",
+   "alpaca": "GS",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252
+  }
+ }
+}
