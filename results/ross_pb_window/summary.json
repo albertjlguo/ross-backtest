@@ -1,0 +1,36 @@
+{
+  "overall": {
+    "trades": 165,
+    "win_rate": 0.2788,
+    "avg_r": -0.3231,
+    "median_r": -0.6422,
+    "avg_win_r": 1.1663,
+    "avg_loss_r": -0.8989,
+    "profit_factor": 0.5148,
+    "total_pnl": -5017.84,
+    "t1_hit_rate": 0.1455,
+    "days_in_sample": 501,
+    "days_traded": 144,
+    "max_drawdown": -5144.65,
+    "max_consec_losses": 15,
+    "daily_sharpe_ann": -2.428,
+    "expectancy_per_trade": -30.41
+  },
+  "funnel": {
+    "symbol_days_loaded": 42214,
+    "symbol_days_qualified": 1543,
+    "pullback_setups_armed": 693,
+    "entries_signal": 165,
+    "entries_after_portfolio_rules": 165,
+    "dropped_by_portfolio_rules": 0,
+    "blocked_not_first_pullback": 229,
+    "blocked_max_trades_symbol_day": 0,
+    "skipped_size_zero": 0,
+    "setup_broken_before_trigger": 42,
+    "rejected_rr": 0,
+    "adds": 0
+  },
+  "notes": [
+    "催化剂判定方式: news"
+  ]
+}
