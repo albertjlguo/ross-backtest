@@ -1,0 +1,23 @@
+{
+  "signature": {
+    "start": "2020-01-01",
+    "end": "2024-09-30",
+    "mode": "volume",
+    "min_pct": 0.1,
+    "min_rvol": 5.0,
+    "min_price": 2.0,
+    "max_price": 20.0
+  },
+  "candidates": 142415,
+  "candidate_dates": 1194,
+  "inactive_symbols": 1621,
+  "inactive_with_daily_bars": 1207,
+  "inactive_in_candidates": 11770,
+  "sample_size": 12,
+  "median_daily_vol_over_regular_minutes": 1.014,
+  "median_daily_vol_over_all_minutes": 1.001,
+  "median_premarket_vol_share": 0.0,
+  "share_premarket_high_above_daily_high": 0.083,
+  "median_premarket_minutes_with_bars": 0.0,
+  "interpretation": "daily_vol_over_all≈1 → 日线含盘前盘后；daily_vol_over_regular≈1 → 日线只含常规时段，相对量会偏高，需要调高 min_rvol 或改用分钟线自算 ADV。premarket_high_above_daily_high 比例高 → 日线最高价不含盘前，预筛可能漏票。"
+}

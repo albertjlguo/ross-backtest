@@ -1,0 +1,7 @@
+exit_reason,trades,win_rate,avg_r,median_r,avg_win_r,avg_loss_r,profit_factor,total_pnl,t1_hit_rate
+breakeven_stop,46,1.0,1.2776,1.4913,1.2776,,inf,5870.11,1.0
+breakeven_stop_gap,4,1.0,0.9676,1.0124,0.9676,,inf,386.72,1.0
+flatten_time,12,1.0,3.4788,3.1846,3.4788,,inf,4167.13,1.0
+stop,90,0.0111,-1.1425,-1.1261,0.2014,-1.1576,0.002,-10254.17,0.0111
+stop_gap,4,0.0,-2.3606,-1.9348,,-2.3606,0.0,-943.64,0.0
+stop_same_bar,31,0.0,-1.1925,-1.15,,-1.1925,0.0,-3693.17,0.0323

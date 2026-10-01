@@ -1,0 +1,17 @@
+{
+  "start": "2020-01-01",
+  "end": "2024-09-30",
+  "generated": "2026-10-01T12:07:20.599551+00:00",
+  "minute_files": 1194,
+  "news_files": 1695,
+  "float_table": true,
+  "prescreen": {
+    "mode": "volume",
+    "min_pct": 0.1,
+    "min_rvol": 5.0,
+    "min_price": 2.0,
+    "max_price": 20.0
+  },
+  "ambiguous_events": 149,
+  "ambiguous_resolved_by_ticks": 149
+}
