@@ -316,7 +316,8 @@ class Pipeline:
         amb_all: list[dict] = []
         acc = {name: {"trades": [], "all": [], "dropped": [], "counters": Counter(), "notes": None}
                for name in runs}
-        files = sorted((self.d / "minute").glob("*.parquet"))
+        s0, e0 = str(pd.Timestamp(self.start).date()), str(pd.Timestamp(self.end).date())
+        files = [f for f in sorted((self.d / "minute").glob("*.parquet")) if s0 <= f.stem <= e0]
         for k, f in enumerate(files):
             raw_bars = pd.read_parquet(f)
             if raw_bars.empty:

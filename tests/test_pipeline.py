@@ -291,3 +291,13 @@ def test_extending_start_redownloads_daily_but_reuses_minutes(tmp_path):
     assert cands["date"].min() == fa.days[0]
     files = {f.stem for f in (tmp_path / "d" / "minute").glob("*.parquet")}
     assert {str(d) for d in cands["date"].unique()} <= files
+
+
+def test_alpaca_trades_mixed_timestamp_formats():
+    js = {"trades": {"AAA": [{"t": "2020-06-02T12:00:03Z", "p": 5.0, "s": 100, "c": ["@"], "i": 1},
+                             {"t": "2020-06-02T12:00:03.512Z", "p": 5.1, "s": 100, "c": ["@"], "i": 2}]},
+          "next_page_token": None}
+    c = AlpacaClient("k", "s", per_minute=60000, session=SeqSession([Resp(200, js)]),
+                     sleep=lambda x: None)
+    df = c.trades(["AAA"], "2020-06-02T12:00:00Z", "2020-06-02T12:01:00Z")
+    assert len(df) == 2 and df["ts"].is_monotonic_increasing

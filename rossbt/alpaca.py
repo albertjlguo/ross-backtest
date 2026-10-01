@@ -112,7 +112,7 @@ class AlpacaClient:
             params = {**params, "page_token": tok}
         df = pd.DataFrame(rows, columns=["symbol", "ts", "open", "high", "low", "close",
                                          "volume", "trades", "vwap"])
-        df["ts"] = pd.to_datetime(df["ts"], utc=True)
+        df["ts"] = pd.to_datetime(df["ts"], utc=True, format="ISO8601")
         return df
 
     def news(self, symbols: Iterable[str], start: str, end: str) -> pd.DataFrame:
@@ -132,7 +132,7 @@ class AlpacaClient:
                 break
             params = {**params, "page_token": tok}
         df = pd.DataFrame(rows, columns=["symbol", "ts", "headline", "source"])
-        df["ts"] = pd.to_datetime(df["ts"], utc=True)
+        df["ts"] = pd.to_datetime(df["ts"], utc=True, format="ISO8601")
         return df
 
     def trades(self, symbols: Iterable[str], start: str, end: str, feed: str = "sip",
@@ -153,5 +153,5 @@ class AlpacaClient:
                 break
             params = {**params, "page_token": tok}
         df = pd.DataFrame(rows, columns=["symbol", "ts", "price", "size", "conditions", "id"])
-        df["ts"] = pd.to_datetime(df["ts"], utc=True)
+        df["ts"] = pd.to_datetime(df["ts"], utc=True, format="ISO8601")
         return df
