@@ -1,0 +1,12 @@
+{
+  "start": "2026-09-09",
+  "end": "2026-09-30",
+  "generated": "2026-10-01T07:09:30.915718Z",
+  "minute_files": 16,
+  "news_files": 16,
+  "float_table": true,
+  "prescreen": {
+    "min_pct": 0.05,
+    "min_rvol": 2.0
+  }
+}

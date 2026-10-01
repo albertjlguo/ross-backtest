@@ -1,0 +1,4 @@
+float_bucket,trades,win_rate,avg_r,median_r,avg_win_r,avg_loss_r,profit_factor,total_pnl,t1_hit_rate
+<5M,5,0.0,-0.9302,-1.075,,-0.9302,0.0,-464.59,0.0
+5-10M,1,0.0,-0.2077,-0.2077,,-0.2077,0.0,-20.76,0.0
+10-20M,1,0.0,-0.005,-0.005,,-0.005,0.0,-0.5,0.0

@@ -1,0 +1,4 @@
+exit_reason,trades,win_rate,avg_r,median_r,avg_win_r,avg_loss_r,profit_factor,total_pnl,t1_hit_rate
+first_red_candle,1,0.0,-0.928,-0.928,,-0.928,0.0,-92.8,0.0
+stop,1,0.0,-1.1295,-1.1295,,-1.1295,0.0,-112.8,0.0
+stop_same_bar,1,0.0,-1.1641,-1.1641,,-1.1641,0.0,-116.09,0.0

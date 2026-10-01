@@ -1,0 +1,3 @@
+time_bucket,trades,win_rate,avg_r,median_r,avg_win_r,avg_loss_r,profit_factor,total_pnl,t1_hit_rate
+09:00-09:30,1,0.0,-0.928,-0.928,,-0.928,0.0,-92.8,0.0
+09:30-10:00,2,0.0,-1.1468,-1.1468,,-1.1468,0.0,-228.89,0.0

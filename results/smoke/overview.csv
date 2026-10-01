@@ -1,0 +1,10 @@
+run,trades,win_rate,avg_r,median_r,avg_win_r,avg_loss_r,profit_factor,total_pnl,t1_hit_rate,days_in_sample,days_traded,max_drawdown,max_consec_losses,daily_sharpe_ann,expectancy_per_trade,funnel_symbol_days_loaded,funnel_symbol_days_qualified,funnel_pullback_setups_armed,funnel_entries_signal,funnel_entries_after_portfolio_rules,funnel_dropped_by_portfolio_rules,funnel_blocked_not_first_pullback,funnel_blocked_max_trades_symbol_day,funnel_skipped_size_zero,funnel_setup_broken_before_trigger,funnel_rejected_rr,funnel_adds
+ross,3,0.0,-1.0248,-1.075,,-1.0248,0.0,-307.0,0.0,16,3,-307.0,3,-7.331,-102.33,1498,53,33,3,3,0,17,0,0,2,0,0
+summary,1,1.0,0.4069,0.4069,0.4069,,inf,40.68,1.0,16,1,0.0,0,3.969,40.68,1498,53,14,1,1,0,4,0,0,2,48,0
+aggressive,3,0.0,-1.0248,-1.075,,-1.0248,0.0,-307.0,0.0,16,3,-307.0,3,-7.331,-102.33,1498,53,33,3,3,0,17,0,0,2,0,0
+ross_worst_case,4,0.0,-1.1488,-1.1022,,-1.1488,0.0,-458.98,0.0,16,4,-458.98,4,-8.817,-114.74,1498,53,33,4,4,0,17,0,0,0,0,0
+ross_slip30,3,0.0,-1.0739,-1.1295,,-1.0739,0.0,-321.69,0.0,16,3,-321.69,3,-7.342,-107.23,1498,53,33,3,3,0,17,0,0,2,0,0
+ross_no_vol_div,3,0.0,-1.0248,-1.075,,-1.0248,0.0,-307.0,0.0,16,3,-307.0,3,-7.331,-102.33,1498,53,33,3,3,0,17,0,0,2,0,0
+ross_top3,3,0.0,-1.0248,-1.075,,-1.0248,0.0,-307.0,0.0,16,3,-307.0,3,-7.331,-102.33,1498,52,33,3,3,0,17,0,0,2,0,0
+ross_pullback2,7,0.0,-0.6948,-0.87,,-0.6948,0.0,-485.85,0.0,16,5,-485.85,7,-7.804,-69.41,1498,53,33,7,7,0,9,0,0,3,0,0
+ross_no_catalyst,5,0.2,-0.3437,-0.87,1.4855,-0.801,0.4625,-171.98,0.2,16,5,-220.0,2,-2.898,-34.4,1498,67,44,5,5,0,20,0,0,3,0,0

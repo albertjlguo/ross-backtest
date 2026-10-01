@@ -1,0 +1,14 @@
+{
+  "candidates": 1514,
+  "candidate_dates": 16,
+  "inactive_symbols": 1621,
+  "inactive_with_daily_bars": 3,
+  "inactive_in_candidates": 0,
+  "sample_size": 5,
+  "median_daily_vol_over_regular_minutes": 1.082,
+  "median_daily_vol_over_all_minutes": 1.023,
+  "median_premarket_vol_share": 0.026,
+  "share_premarket_high_above_daily_high": 0.4,
+  "median_premarket_minutes_with_bars": 6.0,
+  "interpretation": "daily_vol_over_all≈1 → 日线含盘前盘后；daily_vol_over_regular≈1 → 日线只含常规时段，相对量会偏高，需要调高 min_rvol 或改用分钟线自算 ADV。premarket_high_above_daily_high 比例高 → 日线最高价不含盘前，预筛可能漏票。"
+}
