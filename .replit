@@ -1,0 +1,2 @@
+modules = ["python-3.11"]
+run = "pip install -q -r requirements.txt && python pipeline.py smoke"
