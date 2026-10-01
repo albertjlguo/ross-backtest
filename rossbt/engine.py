@@ -64,7 +64,13 @@ def _comm(sh: int, cfg: Config) -> float:
 
 
 def simulate_symbol_day(sym: str, date, f: pd.DataFrame, cfg: Config,
-                        float_shares: float, counters: Counter) -> list[dict]:
+                        float_shares: float, counters: Counter,
+                        resolver: dict | None = None, amb_log: list | None = None) -> list[dict]:
+    """
+    resolver: {(symbol, 分钟起点UTC, 上方价位, 下方价位): "up" | "down"}——逐笔成交给出的
+              "同一分钟里两个价位谁先被触及"。没有的就退回 intrabar_path 假设。
+    amb_log : 传入列表时，把所有这种歧义事件记下来，供下载逐笔用。
+    """
     m = f["minute"].tolist()
     ts = f["ts"].tolist()
     o = f["open"].tolist(); h = f["high"].tolist()
@@ -83,6 +89,19 @@ def simulate_symbol_day(sym: str, date, f: pd.DataFrame, cfg: Config,
 
     def in_window(t):
         return E0 <= t < E1 and not any(a <= t < b for a, b in blk)
+
+    def first_touch(i, up, down, kind):
+        """同一根 K 线里 up 和 down 两个价位都被触及：逐笔回答谁先，没有逐笔返回 None。"""
+        key = (sym, pd.Timestamp(ts[i]).tz_convert("UTC").isoformat(), round(up, 4), round(down, 4))
+        if amb_log is not None:
+            amb_log.append({"symbol": key[0], "minute_utc": key[1], "up": key[2], "down": key[3],
+                            "kind": kind})
+        ans = resolver.get(key) if resolver else None
+        counters[f"ambiguous_{kind}"] += 1
+        if ans in ("up", "down"):
+            counters[f"ambiguous_{kind}_resolved"] += 1
+            return ans
+        return None
 
     trades: list[dict] = []
     pos: _Pos | None = None
@@ -145,11 +164,23 @@ def simulate_symbol_day(sym: str, date, f: pd.DataFrame, cfg: Config,
         if pos is not None and l[i] <= pos.stop:
             close_all(i, pos.stop, why)
 
-    def bar_exits(i, fresh: bool, at_open: bool):
-        """本根 K 线内的止损 / 目标，按 intrabar_path 决定先后。"""
+    def next_target():
+        if aggressive or pos is None:
+            return None
+        if not pos.t1_done:
+            return pos.t1
+        if pos.extras_done < len(cfg.extra_targets):
+            return pos.trigger + cfg.extra_targets[pos.extras_done][0] * pos.risk_ps
+        return None
+
+    def bar_exits(i, fresh: bool, at_open: bool, entry_first: bool = False):
+        """本根 K 线内的止损 / 目标，按逐笔结论或 intrabar_path 决定先后。"""
         green = c[i] >= o[i]
         if fresh:
-            if worst:
+            if entry_first:                  # 逐笔：先到触发价，之后才跌破止损
+                take_targets(i)
+                stop_check(i, "stop_same_bar")
+            elif worst:
                 stop_check(i, "stop_same_bar")
                 take_targets(i)
             elif green:                      # 开→低→高：开盘成交才会经历低点
@@ -163,7 +194,16 @@ def simulate_symbol_day(sym: str, date, f: pd.DataFrame, cfg: Config,
         if o[i] <= pos.stop:
             close_all(i, o[i], pos.stop_kind + "_gap")
             return
-        if worst or green:
+        nxt = next_target()
+        if nxt is not None and l[i] <= pos.stop and h[i] >= nxt and o[i] < nxt:
+            ft = first_touch(i, nxt, pos.stop, "position")
+            if ft is not None:
+                stop_first = ft == "down"
+            else:
+                stop_first = worst or green
+        else:
+            stop_first = worst or green
+        if stop_first:
             stop_check(i, pos.stop_kind)
             take_targets(i)
         else:
@@ -223,7 +263,23 @@ def simulate_symbol_day(sym: str, date, f: pd.DataFrame, cfg: Config,
         if armed is not None and in_window(t) and h[i] >= armed["trigger"]:
             ep = armed["episode"]
             at_open = o[i] >= armed["trigger"]
-            broken_first = (not worst and not at_open and c[i] >= o[i] and l[i] <= armed["stop"])
+            touches_stop = l[i] <= armed["stop"]
+            entry_first = False
+            if worst or at_open or not touches_stop:
+                broken_first = False
+            elif o[i] <= armed["stop"]:          # 开盘就在止损下方，先破位再拉上来
+                broken_first = True
+            else:
+                broken_first = c[i] >= o[i]      # 默认：阳线先低后高 → 破位在先
+                eligible = (pos is None and 1 <= ep <= cfg.max_pullback_number
+                            and ep not in traded_episodes
+                            and n_trades < cfg.max_trades_per_symbol_day) or \
+                           (pos is not None and aggressive)
+                if eligible:
+                    ft = first_touch(i, armed["trigger"], armed["stop"], "entry")
+                    if ft is not None:
+                        broken_first = ft == "down"
+                        entry_first = ft == "up"
             if pos is None:
                 if not (1 <= ep <= cfg.max_pullback_number):
                     counters["blocked_pullback_number"] += 1
@@ -253,8 +309,9 @@ def simulate_symbol_day(sym: str, date, f: pd.DataFrame, cfg: Config,
                         n_trades += 1
                         traded_episodes.add(ep)
                         counters["entries"] += 1
-                        pos.hi, pos.lo = h[i], (l[i] if (worst or at_open or c[i] < o[i]) else raw)
-                        bar_exits(i, fresh=True, at_open=at_open)
+                        pos.hi, pos.lo = h[i], (l[i] if (worst or at_open or entry_first or c[i] < o[i])
+                                                else raw)
+                        bar_exits(i, fresh=True, at_open=at_open, entry_first=entry_first)
             elif (aggressive and ep >= 1 and ep != pos.episode and ep != pos.last_add_episode
                   and pos.adds < cfg.max_adds and rvol[i - 1] >= cfg.add_min_rvol
                   and armed["stop"] >= pos.avg_cost_raw and not broken_first):
@@ -273,7 +330,7 @@ def simulate_symbol_day(sym: str, date, f: pd.DataFrame, cfg: Config,
                     pos.stop = max(pos.stop, armed["stop"])
                     pos.stop_kind = "raised_stop"
                     counters["adds"] += 1
-                    if worst or at_open or c[i] < o[i]:
+                    if worst or at_open or entry_first or c[i] < o[i]:
                         stop_check(i, "raised_stop_same_bar")
 
         # 3) 用本根 K 线更新形态（收盘时判定，挂下一根的单）

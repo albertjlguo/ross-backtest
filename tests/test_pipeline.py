@@ -184,6 +184,21 @@ class FakeAlpaca:
         m["ts"] = m["ts"].dt.tz_convert("UTC")
         return m.reset_index(drop=True)
 
+    def trades(self, symbols, start, end, feed="sip"):
+        """把那根分钟线拆成逐笔：故意和 ohlc 假设反着来（阳线先高后低、阴线先低后高）。"""
+        self.calls["trades"] += 1
+        s0 = pd.Timestamp(start)
+        m = self.minute[(self.minute["symbol"].isin(symbols))
+                        & (self.minute["ts"].dt.tz_convert("UTC") == s0)]
+        rows = []
+        for r in m.itertuples():
+            path = [r.open, r.high, r.low, r.close] if r.close >= r.open else \
+                   [r.open, r.low, r.high, r.close]
+            for k, px in enumerate(path):
+                rows.append((r.symbol, s0 + pd.Timedelta(seconds=10 * k), px, 100, "@", k))
+        rows.append((symbols[0], s0 + pd.Timedelta(seconds=5), 999.0, 100, "Z", 99))  # 乱序成交应被剔除
+        return pd.DataFrame(rows, columns=["symbol", "ts", "price", "size", "conditions", "id"])
+
     def news(self, symbols, start, end):
         self.calls["news"] += 1
         s, e = pd.Timestamp(start), pd.Timestamp(end)
@@ -224,6 +239,10 @@ def test_pipeline_end_to_end_and_resume(tmp_path):
     assert len(minute_files) == cands["date"].nunique()
     ross = ov.set_index("run").loc["ross"]
     assert ross["trades"] > 0, ov
+    info = json.loads((tmp_path / "results" / "run_info.json").read_text())
+    assert info["ambiguous_events"] > 0
+    assert info["ambiguous_resolved_by_ticks"] == info["ambiguous_events"]
+    assert fa.calls["trades"] > 0
 
     # 断点续传：再跑一次不应再打行情接口
     before = dict(fa.calls)

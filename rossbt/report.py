@@ -83,6 +83,7 @@ def summarize(res: BacktestResult) -> dict:
         "setup_broken_before_trigger": res.counters.get("setup_broken_before_trigger", 0),
         "rejected_rr": res.counters.get("rejected_rr", 0),
         "adds": res.counters.get("adds", 0),
+        **{k: v for k, v in sorted(res.counters.items()) if k.startswith("ambiguous_")},
     }
     return out
 

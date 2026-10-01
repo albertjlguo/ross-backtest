@@ -341,3 +341,51 @@ def test_top_n_gainers_rank():
     assert set(res.trades["symbol"]) == {"HOT"}
     cfg2 = Config(**ZERO_COST, **QUIET, top_n_gainers=2, max_concurrent_positions=5)
     assert set(run_backtest(bars, daily, cfg2, news=news).trades["symbol"]) == {"HOT", "TEST"}
+
+
+# ------------------------------ 逐笔结论 ------------------------------------ #
+def _resolver_key(hm, up, down):
+    t = pd.Timestamp(f"{DAY} {hm}", tz=ET).tz_convert("UTC").isoformat()
+    return ("TEST", t, round(up, 4), round(down, 4))
+
+
+def test_ticks_resolve_entry_ambiguity():
+    rows = BASE + [("07:02", 5.90, 6.10, 5.80, 6.08, 50_000)]   # 阳线，触发价和止损都触及
+    bars, daily, news = make(rows)
+    cfg = Config(**ZERO_COST, **QUIET)
+    # 默认（ohlc）：阳线先低后高 → 形态先破，不入场；同时记录歧义事件
+    r0 = run_backtest(bars, daily, cfg, news=news, collect_ambiguous=True)
+    assert len(r0.trades) == 0 and r0.ambiguous[0]["kind"] == "entry"
+    # 逐笔说先到触发价 → 真实成交后被止损
+    res_up = {_resolver_key("07:02", 6.01, 5.85): "up"}
+    t = only_trade(run_backtest(bars, daily, cfg, news=news, resolver=res_up))
+    assert t.exit_reason == "stop_same_bar" and t.r_multiple == pytest.approx(-1.0, abs=1e-3)
+    # 逐笔说先破止损 → 不入场
+    res_dn = {_resolver_key("07:02", 6.01, 5.85): "down"}
+    assert len(run_backtest(bars, daily, cfg, news=news, resolver=res_dn).trades) == 0
+
+
+def test_ticks_resolve_position_ambiguity():
+    rows = BASE + [
+        ("07:02", 5.90, 6.10, 5.88, 6.08, 50_000),
+        ("07:03", 6.08, 6.40, 5.80, 6.30, 60_000),   # 阳线：T1=6.33 和止损 5.85 都触及
+    ]
+    bars, daily, news = make(rows)
+    cfg = Config(**ZERO_COST, **QUIET)
+    t0 = only_trade(run_backtest(bars, daily, cfg, news=news))
+    assert t0.exit_reason == "stop"                          # ohlc：阳线先低 → 先止损
+    res = {_resolver_key("07:03", 6.33, 5.85): "up"}
+    t1 = only_trade(run_backtest(bars, daily, cfg, news=news, resolver=res))
+    assert [f["why"] for f in json.loads(t1.fills)] == ["entry", "t1", "stop"]
+
+
+def test_tick_resolution_logic():
+    from rossbt.ticks import resolve, first_touch
+    assert first_touch([5.9, 6.02, 5.8], 6.01, 5.85) == "up"
+    assert first_touch([5.9, 5.84, 6.2], 6.01, 5.85) == "down"
+    assert first_touch([5.9, 5.95], 6.01, 5.85) is None
+    ev = pd.DataFrame([{"symbol": "X", "minute_utc": "m", "up": 6.01, "down": 5.85}])
+    tr = pd.DataFrame({"ts": pd.to_datetime(["2026-01-01T00:00:01Z"] * 3), "id": [1, 2, 3],
+                       "price": [5.80, 6.05, 5.70], "conditions": ["Z", "@,T", ""]})
+    out = resolve(ev, {("X", "m"): tr})
+    assert out["first"].iloc[0] == "up"           # 5.80 那笔是乱序上报，被剔除

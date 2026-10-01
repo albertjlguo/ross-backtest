@@ -24,10 +24,22 @@ class BacktestResult:
     days: list
     cfg: Config
     notes: list = field(default_factory=list)
+    ambiguous: list = field(default_factory=list)   # 同根 K 线两价位都被触及的事件（供拉逐笔）
+
+
+FEATURE_FIELDS = ("session_start", "vwap_anchor", "vol_avg_window", "participation_window",
+                  "news_lookback_hours", "min_pct_change", "min_rvol", "min_price", "max_price",
+                  "max_float", "require_catalyst", "missing_float")
 
 
 def run_backtest(bars: pd.DataFrame, daily: pd.DataFrame, cfg: Config,
-                 news: pd.DataFrame | None = None, progress: bool = False) -> BacktestResult:
+                 news: pd.DataFrame | None = None, progress: bool = False,
+                 resolver: dict | None = None, collect_ambiguous: bool = False,
+                 feat_cache: dict | None = None) -> BacktestResult:
+    """
+    resolver / collect_ambiguous：见 engine.simulate_symbol_day。
+    feat_cache：同一批 bars 跑多组配置时传同一个 dict，特征相关参数相同的配置共用每日特征。
+    """
     notes: list[str] = []
     counters: Counter = Counter()
 
@@ -54,10 +66,22 @@ def run_backtest(bars: pd.DataFrame, daily: pd.DataFrame, cfg: Config,
     s0 = hhmm(cfg.session_start)
 
     trades: list[dict] = []
+    amb: list[dict] | None = [] if collect_ambiguous else None
     days = sorted(bars["date"].unique())
+    fkey = tuple(getattr(cfg, k) for k in FEATURE_FIELDS) + (cat_mode,)
     for k, (date, dbars) in enumerate(bars.groupby("date", sort=True)):
         if progress and k % 20 == 0:
             print(f"  {date}  ({k + 1}/{len(days)})")
+        ck = (date, fkey)
+        if feat_cache is not None and ck in feat_cache:
+            base, miss = feat_cache[ck]
+            counters["symbol_days_missing_daily"] += miss
+            if base is None:
+                continue
+            day = apply_gainer_rank(base.copy(), cfg.top_n_gainers)
+            _simulate_day(day, date, cfg, didx, e_end, s0, counters, trades, resolver, amb)
+            continue
+        miss0 = counters["symbol_days_missing_daily"]
         feats = []
         for sym, g in dbars.groupby("symbol", sort=False):
             key = (date, sym)
@@ -74,25 +98,32 @@ def run_backtest(bars: pd.DataFrame, daily: pd.DataFrame, cfg: Config,
                 cfg, cat_mode)
             if len(f):
                 feats.append(f)
-        if not feats:
+        base = pd.concat(feats, ignore_index=True) if feats else None
+        if feat_cache is not None:
+            feat_cache[ck] = (base, counters["symbol_days_missing_daily"] - miss0)
+        if base is None:
             continue
-        day = pd.concat(feats, ignore_index=True)
-        day = apply_gainer_rank(day, cfg.top_n_gainers)
-
-        for sym, f in day.groupby("symbol", sort=False):
-            counters["symbol_days"] += 1
-            win = (f["minute"] >= s0) & (f["minute"] < e_end)
-            if not (f["qual"] & win).any():
-                continue
-            counters["symbol_days_qualified"] += 1
-            fs = didx.loc[(date, sym)].get("float_shares", np.nan)
-            trades += simulate_symbol_day(sym, date, f.reset_index(drop=True), cfg, fs, counters)
+        day = apply_gainer_rank(base.copy() if feat_cache is not None else base,
+                                cfg.top_n_gainers)
+        _simulate_day(day, date, cfg, didx, e_end, s0, counters, trades, resolver, amb)
 
     tall = pd.DataFrame(trades)
     if len(tall):
         tall = tall.sort_values("entry_time").reset_index(drop=True)
     kept, dropped = apply_portfolio_rules(tall, cfg)
-    return BacktestResult(kept, tall, dropped, counters, days, cfg, notes)
+    return BacktestResult(kept, tall, dropped, counters, days, cfg, notes, amb or [])
+
+
+def _simulate_day(day, date, cfg, didx, e_end, s0, counters, trades, resolver, amb):
+    for sym, f in day.groupby("symbol", sort=False):
+        counters["symbol_days"] += 1
+        win = (f["minute"] >= s0) & (f["minute"] < e_end)
+        if not (f["qual"] & win).any():
+            continue
+        counters["symbol_days_qualified"] += 1
+        fs = didx.loc[(date, sym)].get("float_shares", np.nan)
+        trades += simulate_symbol_day(sym, date, f.reset_index(drop=True), cfg, fs, counters,
+                                      resolver=resolver, amb_log=amb)
 
 
 def apply_portfolio_rules(trades: pd.DataFrame, cfg: Config):

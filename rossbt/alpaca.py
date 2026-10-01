@@ -134,3 +134,24 @@ class AlpacaClient:
         df = pd.DataFrame(rows, columns=["symbol", "ts", "headline", "source"])
         df["ts"] = pd.to_datetime(df["ts"], utc=True)
         return df
+
+    def trades(self, symbols: Iterable[str], start: str, end: str, feed: str = "sip",
+               limit: int = 10000) -> pd.DataFrame:
+        """逐笔成交：t 时间、p 价格、s 股数、c 成交条件、i 成交编号。"""
+        symbols = list(symbols)
+        params = {"symbols": ",".join(symbols), "start": start, "end": end, "feed": feed,
+                  "limit": limit, "sort": "asc"}
+        rows = []
+        while True:
+            js = self._get(f"{DATA_URL}/v2/stocks/trades", params)
+            for sym, trs in (js.get("trades") or {}).items():
+                for x in trs or []:
+                    rows.append((sym, x["t"], x["p"], x.get("s"), ",".join(x.get("c") or []),
+                                 x.get("i")))
+            tok = js.get("next_page_token")
+            if not tok:
+                break
+            params = {**params, "page_token": tok}
+        df = pd.DataFrame(rows, columns=["symbol", "ts", "price", "size", "conditions", "id"])
+        df["ts"] = pd.to_datetime(df["ts"], utc=True)
+        return df

@@ -36,9 +36,11 @@
 | `news` | 候选股票前一天 04:00 到当天 12:00 的新闻 | `data/news/` |
 | `sec` | SEC 财报封面上的已发行股数，按申报日期对齐 | `data/float.parquet`、`results/sec_coverage.json` |
 | `dq` | 数据质量检查，见下 | `results/data_quality.json` |
-| `backtest` | 跑 10 组配置 | `results/<配置名>/`、`results/overview.csv` |
+| `backtest` | 跑 12 组配置，并记录"同一根 K 线里两个价位都被触及"的歧义事件 | `results/<配置名>/`、`results/overview.csv` |
+| `ticks` | 拉这些歧义分钟的逐笔成交，判断哪个价位先被触及 | `data/tick_resolutions.parquet` |
+| `resolve` | 回测 → 逐笔 → 再回测，直到没有新的歧义事件（`all` 最后会自动跑这一步） | 同 `backtest` |
 
-### 10 组配置
+### 12 组配置
 
 - 三套主预设：`ross`、`summary`、`aggressive`。
 - 七组稳健性检验，各自只改一项：
@@ -48,6 +50,9 @@
   - 只做涨幅榜前 3
   - 允许第二次回调
   - 回调从 07:00 起计数（而不是从入选那一刻起）
+- 两组离场诊断：
+  - 关掉"第一根阴线离场"
+  - 只用止损和目标（关掉所有离场信号）
   - 不要求新闻
 
 **解读结果前先看 `results/data_quality.json`**，它回答以下问题：
@@ -63,7 +68,7 @@
 ```bash
 pip install -r requirements.txt
 python run_backtest.py --demo         # 合成数据跑通
-python -m pytest -q tests             # 37 个测试：手算场景、无未来函数、模拟接口的流水线
+python -m pytest -q tests             # 40 个测试：手算场景、无未来函数、模拟接口的流水线
 ```
 
 > 合成数据只用来验证代码逻辑。它的拉升段是人为造的，所以 demo 的胜率没有任何参考意义。
@@ -134,7 +139,7 @@ python run_backtest.py --bars bars.parquet --daily daily.csv --news news.csv \
 
 - **入场**：止损单触及即按触发价成交；开盘就高于触发价时按开盘价成交。
 - **跳空止损**：开盘已低于止损价时按开盘价成交。
-- **同一根 K 线内的先后**（`intrabar_path`）：
+- **同一根 K 线内的先后**：优先用逐笔成交判断（`resolve` 步骤）；没有逐笔结论时才用下面的假设（`intrabar_path`）：
   - `"ohlc"`（默认）：阳线按 开→低→高→收，阴线按 开→高→低→收。
   - `"worst_case"`：止损永远先于目标。
   - 跑完两种都看一遍。合成数据上两者差距很大，说明结论对这个假设敏感。

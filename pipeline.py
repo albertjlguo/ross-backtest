@@ -31,6 +31,7 @@ from rossbt import PRESETS, load_bars, load_daily, load_news, run_backtest
 from rossbt.backtest import BacktestResult
 from rossbt.data import ET, candidate_days, prepare_daily_split_aware
 from rossbt.report import save_results
+from rossbt.ticks import resolve as resolve_ticks, to_resolver
 
 log = logging.getLogger("pipeline")
 
@@ -49,6 +50,11 @@ RUNS = {
     "ross_pullback2": _BASE["ross"].with_(max_pullback_number=2),
     "ross_pb_window": _BASE["ross"].with_(count_pullbacks_from="window"),
     "ross_no_catalyst": _BASE["ross"].with_(require_catalyst=False),
+    # 诊断：离场信号是帮忙还是添乱
+    "ross_no_first_red": _BASE["ross"].with_(exit_on_first_red_before_t1=False),
+    "ross_bracket_only": _BASE["ross"].with_(
+        exit_on_first_red_before_t1=False, sig_stall=False, sig_bid_pressure=False,
+        sig_topping_tail=False, sig_rejections=False, sig_volume_divergence=False),
 }
 
 
@@ -299,6 +305,10 @@ class Pipeline:
             news_by_date[f.stem] = load_news(n) if len(n) else load_news(
                 pd.DataFrame({"symbol": pd.Series(dtype=str), "ts": pd.Series(dtype="datetime64[ns, UTC]")}))
 
+        rpath = self.d / "tick_resolutions.parquet"
+        resolver = to_resolver(pd.read_parquet(rpath)) if rpath.exists() else None
+        log.info("逐笔结论: %d 条", len(resolver or {}))
+        amb_all: list[dict] = []
         acc = {name: {"trades": [], "all": [], "dropped": [], "counters": Counter(), "notes": None}
                for name in runs}
         files = sorted((self.d / "minute").glob("*.parquet"))
@@ -312,8 +322,11 @@ class Pipeline:
             if dsub is None:
                 continue
             news = news_by_date.get(f.stem) if news_files else None
+            cache: dict = {}
             for name, cfg in runs.items():
-                res = run_backtest(bars, dsub, cfg, news=news)
+                res = run_backtest(bars, dsub, cfg, news=news, resolver=resolver,
+                                   collect_ambiguous=True, feat_cache=cache)
+                amb_all += res.ambiguous
                 a = acc[name]
                 a["trades"].append(res.trades); a["all"].append(res.trades_all)
                 a["dropped"].append(res.dropped); a["counters"].update(res.counters)
@@ -334,11 +347,59 @@ class Pipeline:
                                                             "profit_factor", "total_pnl")})
         ov = pd.DataFrame(overview)
         ov.to_csv(self.r / "overview.csv", index=False)
+        amb = pd.DataFrame(amb_all, columns=["symbol", "minute_utc", "up", "down", "kind"])
+        amb = amb.drop_duplicates(["symbol", "minute_utc", "up", "down"])
+        amb.to_parquet(self.d / "ambiguous_events.parquet", index=False)
+        n_res = 0 if resolver is None else sum(
+            (r.symbol, r.minute_utc, r.up, r.down) in resolver for r in amb.itertuples())
         (self.r / "run_info.json").write_text(json.dumps({
             "start": self.start, "end": self.end, "generated": dt.datetime.now(dt.timezone.utc).isoformat(),
             "minute_files": len(files), "news_files": len(news_files),
-            "float_table": fpath.exists(), "prescreen": self.prescreen},
+            "float_table": fpath.exists(), "prescreen": self.prescreen,
+            "ambiguous_events": int(len(amb)), "ambiguous_resolved_by_ticks": int(n_res)},
             indent=2))
+        return ov
+
+    def step_ticks(self, force=False) -> int:
+        """拉歧义分钟的逐笔，返回本次新增的结论条数（含"逐笔也判断不了"的）。"""
+        ep = self.d / "ambiguous_events.parquet"
+        if not ep.exists():
+            return 0
+        ev = pd.read_parquet(ep)
+        rpath = self.d / "tick_resolutions.parquet"
+        old = pd.read_parquet(rpath) if (rpath.exists() and not force) else None
+        if old is not None:
+            done = set(zip(old["symbol"], old["minute_utc"], old["up"].round(4), old["down"].round(4)))
+            ev = ev[[(s, m, round(u, 4), round(d, 4)) not in done
+                     for s, m, u, d in zip(ev["symbol"], ev["minute_utc"], ev["up"], ev["down"])]]
+        if ev.empty:
+            log.info("逐笔: 没有新的歧义事件")
+            return 0
+        keys = ev[["symbol", "minute_utc"]].drop_duplicates()
+        log.info("逐笔: %d 个事件，%d 个分钟待下载", len(ev), len(keys))
+        tbk = {}
+        for k, r in enumerate(keys.itertuples(index=False)):
+            t0 = pd.Timestamp(r.minute_utc)
+            tbk[(r.symbol, r.minute_utc)] = self.alp.trades(
+                [r.symbol], t0.isoformat(), (t0 + pd.Timedelta(seconds=60)).isoformat())
+            if k % 200 == 0:
+                log.info("逐笔 %d/%d", k + 1, len(keys))
+        res = resolve_ticks(ev, tbk)
+        allres = pd.concat([old, res], ignore_index=True) if old is not None else res
+        allres.to_parquet(rpath, index=False)
+        log.info("逐笔结论: 新增 %d 条（其中判断不了 %d 条）", len(res), int(res["first"].isna().sum()))
+        return len(res)
+
+    def step_resolve(self, max_passes: int = 3):
+        """回测 → 拉歧义分钟逐笔 → 再回测，直到没有新的歧义事件。"""
+        ov = None
+        for it in range(max_passes):
+            log.info("回测第 %d 轮", it + 1)
+            ov = self.step_backtest()
+            if self.step_ticks() == 0:
+                break
+        else:
+            ov = self.step_backtest()
         return ov
 
     def run_all(self, force=False):
@@ -349,7 +410,7 @@ class Pipeline:
         except Exception as e:  # SEC 失败不影响主流程
             log.warning("SEC 股本步骤失败，跳过（float 视为缺失）: %s", e)
         self.step_dq(force)
-        return self.step_backtest()
+        return self.step_resolve()
 
 
 def git_push(results_dir: Path, msg: str):
@@ -365,7 +426,7 @@ def git_push(results_dir: Path, msg: str):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("step", choices=["smoke", "all", "universe", "daily", "candidates", "minute",
-                                     "news", "sec", "dq", "backtest"])
+                                     "news", "sec", "dq", "backtest", "ticks", "resolve"])
     yesterday = (pd.Timestamp.now(tz=ET) - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
     ap.add_argument("--start", default="2024-10-01")
     ap.add_argument("--end", default=yesterday)
@@ -395,6 +456,8 @@ def main(argv=None):
         p.run_all(a.force)
     elif a.step == "backtest":
         p.step_backtest()
+    elif a.step == "resolve":
+        p.step_resolve()
     else:
         getattr(p, f"step_{a.step}")(a.force)
 
