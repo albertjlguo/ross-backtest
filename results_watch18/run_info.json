@@ -1,0 +1,35 @@
+{
+ "generated": "2026-10-03T13:59:09.920270+00:00",
+ "steps": [
+  "vr",
+  "scan",
+  "fib_null",
+  "rand_null",
+  "mtf",
+  "csp",
+  "per_asset",
+  "snapshot"
+ ],
+ "groups": {
+  "watch18": [
+   "MA",
+   "AXP",
+   "BRK-B",
+   "QQQ",
+   "META",
+   "TENCENT",
+   "SHOP",
+   "COIN",
+   "NET",
+   "TSLA",
+   "SPCX",
+   "ABNB",
+   "IHG",
+   "MAR",
+   "HLT",
+   "H",
+   "ACCOR",
+   "BTC"
+  ]
+ }
+}

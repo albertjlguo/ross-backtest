@@ -1,0 +1,4 @@
+group,exit,trades,win_rate,avg_ret,avg_log_ret,t_log,median_ret,avg_bars,t_stat,months,cagr,vol,sharpe,max_dd,pct_pos_months,worst_month,best_month,exposure,trades_per_month,assets
+watch18,momo,362,0.519,0.0189,0.0133,2.46,0.0067,14.7,3.31,573,0.0174,0.098,0.225,-0.4669,0.237,-0.2305,0.1716,0.084,0.632,14
+watch18,r2,293,0.529,0.0281,0.0206,2.94,0.0284,27.0,3.91,573,0.0283,0.102,0.325,-0.3832,0.291,-0.2305,0.1681,0.118,0.511,14
+watch18,monthly,17,0.765,16.0017,1.4797,3.78,2.3279,2796.8,1.6,573,0.1176,0.2194,0.621,-0.5341,0.56,-0.3241,0.2382,0.747,0.03,14
