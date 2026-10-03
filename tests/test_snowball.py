@@ -41,7 +41,7 @@ def test_annual_and_derive():
     assert len(d) == 13 and d.index[-1] == pd.Timestamp("2024-12-31")
     L = d.iloc[-1]
     assert 0.2 < L["roic"] < 0.4
-    assert L["maint_base"] >= L["dep"] and L["maint_stress"] >= L["maint_base"]
+    assert L["maint_base"] == L["dep"] and L["maint_stress"] >= L["maint_base"] and L["maint_worst"] >= L["dep"]
     assert L["maint_greenwald"] <= L["capex"]
     assert L["owner_earnings"] == L["net_income"] + L["da"] - L["maint_base"]
     assert abs(L["useful_life"] - 16) < 0.01            # 0.8 / 0.05

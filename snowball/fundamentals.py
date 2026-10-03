@@ -7,7 +7,7 @@
     dep        固定资产折旧（折旧摊销 − 无形资产摊销；拿不到摊销就用全部折旧摊销）
     greenwald  资本开支 − 过去 5 年"固定资产净值/收入"均值 × 当年收入增量（限制在 0 ~ 资本开支之间）
     full       满载折旧 = 固定资产原值 ÷ 使用年限（使用年限 = 历年"原值/折旧"的中位数）
-  基准 = max(dep, greenwald)；压力 = max(基准, full)
+  基准 = dep；压力 = max(dep, full)；最坏 = max(dep, greenwald)
   投入资本 = 总资产 − 现金及短期投资 −（流动负债 − 短期有息负债）
   ROIC = 营业利润 ×(1 − 21%) ÷ 期初期末平均投入资本
   增量 ROIC（5 年）= Δ税后营业利润 ÷ Δ投入资本
@@ -127,7 +127,17 @@ def derive(df: pd.DataFrame, financial: bool = False) -> pd.DataFrame:
     d["roic_incr_5y"] = (d["nopat"] - d["nopat"].shift(5)) / (d["invested_capital"] - d["invested_capital"].shift(5)).where(lambda x: x > 0)
     d["op_margin"] = d["op_income"] / d["revenue"]
     # ---- 维持性资本开支 ----
-    d["dep"] = (d["da"] - d["amort"].fillna(0)).clip(lower=0)
+    # 有的公司折旧标签只含固定资产折旧（摊销另列，且比它大）：这时折旧摊销合计 = 两者相加
+    am = d["amort"].fillna(0)
+    dep_only = am > d["da"]
+    d["dep"] = np.where(dep_only, d["da"], (d["da"] - am).clip(lower=0))
+    d["da"] = np.where(dep_only, d["da"] + am, d["da"])
+    # 拆股：加权股数同比跳变超过 1.8 倍视为拆股，把之前年份折算到拆股后口径
+    sh = d["shares"].copy()
+    ratio_s = sh / sh.shift(1)
+    for i in np.where((ratio_s > 1.8) | (ratio_s < 0.55))[0]:
+        sh.iloc[:i] *= ratio_s.iloc[i]
+    d["shares"] = sh
     ratio = (d["ppe_net"] / d["revenue"]).rolling(5, min_periods=3).mean().shift(1)
     growth_capex = (ratio * d["revenue"].diff()).clip(lower=0)
     d["maint_greenwald"] = (d["capex"] - growth_capex).clip(lower=0).where(ratio.notna())
@@ -136,10 +146,14 @@ def derive(df: pd.DataFrame, financial: bool = False) -> pd.DataFrame:
     life = (gross / d["dep"].where(d["dep"] > 0)).expanding(min_periods=3).median()
     d["useful_life"] = life
     d["maint_full"] = gross / life
-    d["maint_base"] = d[["dep", "maint_greenwald"]].max(axis=1)
-    d["maint_stress"] = d[["maint_base", "maint_full"]].max(axis=1)
+    # 基准 = 折旧；压力 = max(折旧, 满载折旧)；最坏 = max(折旧, 收入比例法)
+    # （收入比例法在开支领先收入时会把扩张性开支算成维持性，所以只当上限用）
+    d["maint_base"] = d["dep"]
+    d["maint_stress"] = d[["dep", "maint_full"]].max(axis=1)
+    d["maint_worst"] = d[["dep", "maint_greenwald"]].max(axis=1)
     d["owner_earnings"] = d["net_income"] + d["da"] - d["maint_base"]
     d["owner_earnings_stress"] = d["net_income"] + d["da"] - d["maint_stress"]
+    d["owner_earnings_worst"] = d["net_income"] + d["da"] - d["maint_worst"]
     d["fcf"] = d["cfo"] - d["capex"]
     d["fcf_ex_sbc"] = d["fcf"] - d["sbc"].fillna(0)
     d["oe_ps"] = d["owner_earnings"] / d["shares"]
