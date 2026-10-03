@@ -563,5 +563,169 @@
    "cost_bps": 3.0,
    "ann_days": 252
   }
+ },
+ "watch18": {
+  "MA": {
+   "yahoo": "MA",
+   "stooq": "ma.us",
+   "alpaca": "MA",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "core"
+  },
+  "AXP": {
+   "yahoo": "AXP",
+   "stooq": "axp.us",
+   "alpaca": "AXP",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "core"
+  },
+  "BRK-B": {
+   "yahoo": "BRK-B",
+   "stooq": "brk.b.us",
+   "alpaca": "BRK.B",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "core"
+  },
+  "QQQ": {
+   "yahoo": "QQQ",
+   "stooq": "qqq.us",
+   "alpaca": "QQQ",
+   "options": true,
+   "cost_bps": 2.0,
+   "ann_days": 252,
+   "bucket": "core"
+  },
+  "META": {
+   "yahoo": "META",
+   "stooq": "meta.us",
+   "alpaca": "META",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "core"
+  },
+  "TENCENT": {
+   "yahoo": "0700.HK",
+   "stooq": "700.hk",
+   "options": false,
+   "cost_bps": 15.0,
+   "ann_days": 252,
+   "bucket": "core",
+   "ccy": "HKD"
+  },
+  "SHOP": {
+   "yahoo": "SHOP",
+   "stooq": "shop.us",
+   "alpaca": "SHOP",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "dip"
+  },
+  "COIN": {
+   "yahoo": "COIN",
+   "stooq": "coin.us",
+   "alpaca": "COIN",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "dip"
+  },
+  "NET": {
+   "yahoo": "NET",
+   "stooq": "net.us",
+   "alpaca": "NET",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "dip"
+  },
+  "TSLA": {
+   "yahoo": "TSLA",
+   "stooq": "tsla.us",
+   "alpaca": "TSLA",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "dip"
+  },
+  "SPCX": {
+   "yahoo": "SPCX",
+   "stooq": "spcx.us",
+   "alpaca": "SPCX",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "dip"
+  },
+  "ABNB": {
+   "yahoo": "ABNB",
+   "stooq": "abnb.us",
+   "alpaca": "ABNB",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "watch"
+  },
+  "IHG": {
+   "yahoo": "IHG",
+   "stooq": "ihg.us",
+   "alpaca": "IHG",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "watch"
+  },
+  "MAR": {
+   "yahoo": "MAR",
+   "stooq": "mar.us",
+   "alpaca": "MAR",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "watch"
+  },
+  "HLT": {
+   "yahoo": "HLT",
+   "stooq": "hlt.us",
+   "alpaca": "HLT",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "watch"
+  },
+  "H": {
+   "yahoo": "H",
+   "stooq": "h.us",
+   "alpaca": "H",
+   "options": true,
+   "cost_bps": 3.0,
+   "ann_days": 252,
+   "bucket": "watch"
+  },
+  "ACCOR": {
+   "yahoo": "AC.PA",
+   "stooq": "ac.fr",
+   "options": false,
+   "cost_bps": 10.0,
+   "ann_days": 252,
+   "bucket": "watch",
+   "ccy": "EUR"
+  },
+  "BTC": {
+   "yahoo": "BTC-USD",
+   "coinmetrics": "btc",
+   "alpaca_crypto": "BTC/USD",
+   "options": true,
+   "cost_bps": 10.0,
+   "ann_days": 365,
+   "bucket": "btc"
+  }
  }
 }

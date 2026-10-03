@@ -14,6 +14,11 @@
   mtf         月线定方向 + 日线入场 → mtf.csv
   csp         支撑位卖看跌期权（模型定价）→ csp.csv
   vr          方差比：各品种在哪个周期上更像趋势 → vr.csv
+  per_asset   逐个品种：月/周/日线上"任一支撑位 + 结构止损" vs 买入持有 → per_asset.csv、bucket_portfolio.csv
+  snapshot    现在的状态：健康与否、斐波那契位、均线、离最近支撑多远、是否在持仓 → snapshot.csv
+
+自选 18 个标的（核心 / 抄底 / 观望 + BTC）：
+    python trend_pipeline.py all --groups watch18 --results-dir results_watch18 --push
 """
 from __future__ import annotations
 
@@ -30,7 +35,8 @@ import pandas as pd
 from trendbt.data import fetch_daily, fetch_hourly
 from trendbt.options import CSPParams, simulate_csp
 from trendbt.stats import bar_to_monthly, metrics, portfolio_monthly, trade_stats, variance_ratio
-from trendbt.strategy import MTFParams, StratParams, prepare, simulate, simulate_mtf
+from trendbt.strategy import MTFParams, StratParams, healthy, prepare, simulate, simulate_mtf
+from trendbt.structure import fib_level
 
 log = logging.getLogger("trend")
 
@@ -276,8 +282,110 @@ class TrendStudy:
         pd.DataFrame(rows).to_csv(self.r / "vr.csv", index=False)
         log.info("vr done")
 
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _complete(b: pd.DataFrame, tf: str, crypto: bool) -> pd.DataFrame:
+        """去掉最后一根还没走完的 K 线（比如月初的当月月线）。"""
+        if b.empty or tf not in ("M", "W"):
+            return b
+        last = b.index[-1]
+        end = last + pd.offsets.MonthEnd(0) if tf == "M" else pd.offsets.Week(weekday=4).rollforward(last)
+        nxt = last + (pd.Timedelta(days=1) if crypto else pd.offsets.BDay(1))
+        return b.iloc[:-1] if nxt <= end else b
+
+    def per_asset(self):
+        rows, sl, bh = [], {}, {}
+        for tf in ["M", "W", "D"]:
+            for g, n, s in self.items():
+                b = self.bars(n, tf)
+                t0 = self.ready_from(b) if not b.empty else None
+                base = {"group": g, "bucket": s.get("bucket", g), "asset": n, "tf": tf,
+                        "daily_from": str(self.daily(n).index.min().date()) if len(self.daily(n)) else None}
+                if t0 is None:
+                    rows.append({**base, "note": "历史不够（需要 80 根 K 线 + 一个确认的波段）"})
+                    continue
+                tr, ret = simulate(b, StratParams(entry="any", exit="struct", cost_bps=s.get("cost_bps", 5.0)), n, tf)
+                ret = ret[ret.index >= t0]
+                tr = [t for t in tr if t["entry_t"] >= t0]
+                sm = bar_to_monthly(ret)
+                bm = bar_to_monthly(b["close"][b.index >= t0].pct_change().fillna(0))
+                sl.setdefault((tf, base["bucket"]), {})[n] = sm
+                bh.setdefault((tf, base["bucket"]), {})[n] = bm
+                ms, mb = metrics(sm), metrics(bm)
+                last = tr[-1] if tr else None
+                rows.append({**base, "ready_from": str(t0.date()), **trade_stats(pd.DataFrame(tr)),
+                             **{k: v for k, v in ms.items()},
+                             **{"bh_" + k: v for k, v in mb.items() if k != "months"},
+                             "exposure": round(sum(x["bars"] for x in tr) / max(1, len(ret)), 3),
+                             "in_position_now": bool(last and last["exit_why"] == "open_end"),
+                             "last_entry": str(last["entry_t"].date()) if last else None,
+                             "last_entry_px": round(last["entry_px"], 4) if last else None,
+                             "last_level": last["level"] if last else None,
+                             "last_exit": str(last["exit_t"].date()) if last else None,
+                             "last_exit_why": last["exit_why"] if last else None,
+                             "last_ret": round(last["ret"], 4) if last else None})
+            log.info("per_asset %s", tf)
+        pd.DataFrame(rows).to_csv(self.r / "per_asset.csv", index=False)
+        prow = []
+        for tf in ["M", "W", "D"]:
+            buckets = sorted({k[1] for k in sl if k[0] == tf})
+            for bk in buckets + ["ALL"]:
+                keys = [k for k in sl if k[0] == tf and (bk == "ALL" or k[1] == bk)]
+                s_ = {a: v for k in keys for a, v in sl[k].items()}
+                b_ = {a: v for k in keys for a, v in bh[k].items()}
+                if not s_:
+                    continue
+                prow.append({"tf": tf, "bucket": bk, "assets": len(s_), "names": ",".join(s_),
+                             **metrics(portfolio_monthly(s_)),
+                             **{"bh_" + k: v for k, v in metrics(portfolio_monthly(b_)).items() if k != "months"}})
+        pd.DataFrame(prow).to_csv(self.r / "bucket_portfolio.csv", index=False)
+
+    def snapshot(self):
+        rows = []
+        sp = StratParams()
+        for g, n, s in self.items():
+            dly = self.daily(n)
+            if dly.empty:
+                rows.append({"asset": n, "note": "没有数据"})
+                continue
+            px = float(dly["close"].iloc[-1])
+            for tf in ["M", "W"]:
+                b = self._complete(self.bars(n, tf), tf, s.get("ann_days") == 365)
+                base = {"bucket": s.get("bucket", g), "asset": n, "tf": tf, "ccy": s.get("ccy", "USD"),
+                        "price": round(px, 4), "price_date": str(dly.index[-1].date()), "bars": len(b)}
+                if b.empty or np.isnan(b["H"].iloc[-1]):
+                    rows.append({**base, "note": "历史不够，还画不出波段"})
+                    continue
+                r = b.iloc[-1]
+                H, L = r["H"], r["L"]
+                m3 = b["ma80"].iloc[-4] if len(b) >= 4 else np.nan
+                lv = {f"f{k}": fib_level(H, L, k) for k in (0.236, 0.382, 0.5, 0.618, 0.786)}
+                sup = {**{k: v for k, v in lv.items() if k not in ("f0.236", "f0.786")},
+                       "ma50": r["ma50"], "ma80": r["ma80"]}
+                below = sorted([(v, k) for k, v in sup.items() if not np.isnan(v) and lv["f0.236"] < v < px],
+                               reverse=True)
+                rows.append({**base, "bar_date": str(b.index[-1].date()),
+                             "healthy": healthy(r, sp, m3),
+                             "above_f236": bool(px > lv["f0.236"]),
+                             "ma80_rising": bool(not np.isnan(r["ma80"]) and not np.isnan(m3) and r["ma80"] >= m3),
+                             "H": round(H, 4), "H_date": str(b.index[int(r["H_idx"])].date()),
+                             "L": round(L, 4), "L_date": str(b.index[int(r["L_idx"])].date()),
+                             "retrace_from_H": round(px / H - 1, 4),
+                             "fib_pos": round((px - L) / (H - L), 3),
+                             **{k: round(v, 4) for k, v in lv.items()},
+                             "ma20": r["ma20"], "ma50": r["ma50"], "ma80": r["ma80"],
+                             "K": round(r["K"], 1), "D": round(r["D"], 1),
+                             "macd_hist": r["macd"] - r["macd_sig"], "macd": r["macd"],
+                             "next_support": below[0][1] if below else None,
+                             "next_support_px": round(below[0][0], 4) if below else None,
+                             "pct_to_support": round(below[0][0] / px - 1, 4) if below else None,
+                             "pct_to_stop": round(lv["f0.236"] / px - 1, 4),
+                             "supports_below": ";".join(f"{k}={v:.2f}" for v, k in below)})
+        pd.DataFrame(rows).to_csv(self.r / "snapshot.csv", index=False)
+        log.info("snapshot done")
+
     def study(self, only=None):
-        steps = only or ["vr", "scan", "fib_null", "rand_null", "mtf", "csp"]
+        steps = only or ["vr", "scan", "fib_null", "rand_null", "mtf", "csp", "per_asset", "snapshot"]
         for st in steps:
             t0 = time.time()
             getattr(self, st)()
