@@ -200,12 +200,22 @@ def run_boost(px: pd.DataFrame, cost_bps: pd.Series, k: float | None, base: floa
     expo = pos.sum(axis=1)[live]
     # 状态层面：同样是"趋势向上"，加注状态的日收益（按波动率归一）是否更高
     z = (ret / (vol.shift(1) / sqrt(252)))
-    b1 = z.where(boost.shift(1, fill_value=False) & up.shift(1, fill_value=False)).stack()
-    b0 = z.where(~boost.shift(1, fill_value=False) & up.shift(1, fill_value=False)).stack()
+    bs = boost.shift(1, fill_value=False) & up.shift(1, fill_value=False)
+    ns = ~boost.shift(1, fill_value=False) & up.shift(1, fill_value=False)
+    b1 = z.where(bs).stack().dropna()
+    b0 = z.where(ns).stack().dropna()
+    # 加注事件在时间上高度扎堆（大跌后所有品种一起拐头），所以按月聚合后再算 t 值
+    d = (z.where(bs).mean(axis=1) - z.where(ns).mean(axis=1)).dropna()
+    dm = d.groupby(d.index.to_period("M")).mean()
+    trig = boost & ~boost.shift(1, fill_value=False)
     return {"ret": r[live], "avg_exposure": float(expo.mean()), "max_exposure": float(expo.max()),
             "pct_days_any_boost": float((boost.any(axis=1))[live].mean()),
             "boost_share_of_up_days": float(len(b1) / max(1, len(b1) + len(b0))),
             "z_boost": float(b1.mean()) if len(b1) else np.nan, "z_base": float(b0.mean()) if len(b0) else np.nan,
             "z_boost_sharpe": float(b1.mean() / b1.std() * sqrt(252)) if len(b1) > 50 else np.nan,
             "z_base_sharpe": float(b0.mean() / b0.std() * sqrt(252)) if len(b0) > 50 else np.nan,
-            "boost_asset_days": int(len(b1))}
+            "boost_asset_days": int(len(b1)), "n_triggers": int(trig.to_numpy().sum()),
+            "n_trigger_months": int(trig.any(axis=1).groupby(trig.index.to_period("M")).any().sum()),
+            "n_trigger_years": int(trig.any(axis=1).groupby(trig.index.year).any().sum()),
+            "months_with_boost": int(len(dm)),
+            "t_boost_vs_base_monthly": float(dm.mean() / dm.std(ddof=1) * sqrt(len(dm))) if len(dm) > 12 else np.nan}

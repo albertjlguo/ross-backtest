@@ -60,6 +60,26 @@ def main(argv=None):
                                 if per == "FULL" else {})})
             print("done", g, v)
     pd.DataFrame(rows).to_csv(out / "boost_summary.csv", index=False)
+    # 每次加注事件：哪个品种、哪天进、哪天出、这段涨跌
+    from trendbt.lab import boost_states
+    ev = []
+    for k in KS:
+        up, boost, vol, ok = boost_states(px[groups["ALL"]], k)
+        for n in boost.columns:
+            b = boost[n].to_numpy(); c = px[n].to_numpy(); idx = boost.index
+            t = 0
+            while t < len(b):
+                if b[t] and (t == 0 or not b[t - 1]):
+                    e = t
+                    while e + 1 < len(b) and b[e + 1]:
+                        e += 1
+                    x = min(e + 1, len(b) - 1)
+                    ev.append({"k": k, "asset": n, "entry": idx[t].date(), "exit": idx[x].date(), "days": x - t,
+                               "ret": c[x] / c[t] - 1, "ann_vol": vol[n].iloc[t],
+                               "exit_why": "new_high" if up[n].iloc[x] else "trend_off"})
+                    t = e
+                t += 1
+    pd.DataFrame(ev).to_csv(out / "boost_events.csv", index=False)
     pd.DataFrame(mon).to_csv(out / "boost_monthly.csv")
     print(f"\n完成。结果在 {out.resolve()}")
     if a.push:
