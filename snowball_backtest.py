@@ -5,7 +5,8 @@
     python snowball_backtest.py --push          # 结果在 results_snowball_bt/
 
 规则（跑之前写死，不调）：
-  范围     当前标普 500 成分里的非金融、非地产公司（免费数据拿不到已退市公司 → 有幸存者偏差，见 README 段）
+  范围     当前标普 500 成分里的非金融、非地产公司，且建组当天已经在指数里（按纳入日期过滤）；
+           免费数据拿不到已被剔除/退市的公司 → 仍有幸存者偏差
   时点     每年 6 月最后一个交易日建一组（12 月财年的年报此时都已披露）；只用当天之前已申报的年报，
            且用"最早披露"的数字，不用后来的重述
   指纹合格 最近 5 个财年：每年 ROIC ≥ 15%、每年所有者收益 > 0、每年营业利润 > 0；
@@ -51,6 +52,7 @@ def universe(path: Path) -> pd.DataFrame:
     u = pd.read_csv(path)
     u = u.rename(columns={"Symbol": "ticker", "GICS Sector": "sector", "Security": "name"})
     u["yahoo"] = u["ticker"].str.replace(".", "-", regex=False)
+    u["added"] = pd.to_datetime(u.get("Date added"), errors="coerce")
     return u[~u["sector"].isin(EXCLUDE_SECTORS)].reset_index(drop=True)
 
 
@@ -125,19 +127,25 @@ def main(argv=None):
             log.warning("%s 失败: %s", r["ticker"], e); continue
         if "filed" not in fund or px.empty:
             continue
-        splits = px["split"][px["split"] > 0]
+        # 只认真正的拆股（≥1.25 或 ≤0.8）；雅虎把部分分拆上市也记成 1.0x 左右的"拆股"，股数其实没变
+        splits = px["split"][(px["split"] >= 1.25) | ((px["split"] > 0) & (px["split"] <= 0.8))]
+        raw_sh = fund["shares_diluted"].fillna(fund["shares_basic"])      # 当时披露的原始股数，不做任何折算
         for c in cohorts:
+            if pd.notna(r["added"]) and r["added"] > c:
+                continue                                              # 当时还没进标普 500：不算（否则等于偷看它后来涨进了指数）
             f = fund[fund["filed"] <= c]
             if len(f) < 5 or (c - f.index[-1]).days > 550:
                 continue
             L, w = f.iloc[-1], f.tail(5)
             p0 = at(px["close"], c)
-            if not (p0 > 0) or not (L["shares"] > 0):
+            sh = raw_sh.loc[f.index[-1]]
+            if not (p0 > 0) or not (sh > 0):
                 continue
             sf = float(np.prod(splits[splits.index > L["filed"]].to_numpy())) if len(splits) else 1.0
-            sf_c = float(np.prod(splits[(splits.index > L["filed"]) & (splits.index <= c)].to_numpy())) if len(splits) else 1.0
-            # Yahoo 的收盘价已按之后所有拆股折算：c 日的真实市值 = 折算价 × 折算到今天口径的股数
-            mcap = p0 * L["shares"] * sf
+            # 雅虎的收盘价已按之后所有拆股折算：c 日的真实市值 = 折算价 × 当时披露的股数 × 申报日之后的拆股倍数
+            mcap = p0 * sh * sf
+            if mcap < 0.5e9:
+                continue                                              # 股数单位明显有误（个别公司按千股/百万股填报）
             oe = L["owner_earnings"]
             rev_g = cagr(f["revenue"], 5)
             g_c = max(0.0, min(0.08, (rev_g if pd.notna(rev_g) else 0.0) / 2))
