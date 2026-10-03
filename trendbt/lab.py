@@ -143,3 +143,69 @@ def bonferroni_t(n_trials: int, alpha: float = 0.05) -> float:
         else:
             hi = mid
     return round(hi, 2)
+
+
+# --------------------------------------------------------------------------- #
+#  只做多趋势 + "低位拐头向上时加到 4 倍"，不加杠杆、平时留现金
+# --------------------------------------------------------------------------- #
+def boost_states(px: pd.DataFrame, k: float, p: LabParams = LabParams()):
+    """
+    up[t,i]    四周期趋势（1/3/6/12 个月方向平均）> 0
+    boost[t,i] 加注状态：趋势从"不向上"翻成"向上"的那天，价格离 252 日高点的回撤 ≥ k × 年化波动率
+               → 进入加注；价格创 252 日新高（修复完成）或趋势不再向上 → 退出。
+    全部只用当日及以前的数据。
+    """
+    ret = px.pct_change(fill_method=None)
+    vol = ret.ewm(span=p.vol_span, min_periods=p.vol_span).std() * sqrt(252)
+    ok = px.notna() & (px.notna().cumsum() >= p.min_hist) & vol.gt(0)
+    score = sum(np.sign(px / px.shift(h) - 1) for h in (21, 63, 126, 252)) / 4
+    up = (score > 0) & ok
+    hi = px.rolling(252, min_periods=252).max()
+    dd = 1 - px / hi
+    trig = up & ~up.shift(1, fill_value=False) & (dd >= k * vol)
+    newhi = px >= hi
+    U, T, N = up.to_numpy(), trig.to_numpy(), newhi.to_numpy()
+    B = np.zeros_like(U)
+    for j in range(U.shape[1]):
+        b = False
+        for t in range(U.shape[0]):
+            if not U[t, j] or N[t, j]:
+                b = False
+            elif T[t, j]:
+                b = True
+            B[t, j] = b
+    return up, pd.DataFrame(B, index=px.index, columns=px.columns), vol, ok
+
+
+def run_boost(px: pd.DataFrame, cost_bps: pd.Series, k: float | None, base: float = 0.25,
+              p: LabParams = LabParams()) -> dict:
+    """
+    每个品种的资金上限 cap = 按波动率倒数分配、合计 100%（全部加注时刚好满仓，永不加杠杆）。
+    持仓 = cap × (加注 ? 1 : base) × 趋势向上。k=None → 不加注的对照（一直是 base）。现金收益按 0 计。
+    """
+    ret = px.pct_change(fill_method=None).fillna(0.0)
+    up, boost, vol, ok = boost_states(px, 1.0 if k is None else k, p)
+    iv = (1 / vol).where(ok)
+    cap = iv.div(iv.sum(axis=1), axis=0)
+    keep = pd.Series(np.arange(len(cap)) % p.rebal == 0, index=cap.index)
+    cap = cap.where(keep, np.nan, axis=0).ffill().fillna(0.0).where(ok, 0.0)
+    cap = cap.div(cap.sum(axis=1).clip(lower=1.0), axis=0)          # 合计不超过 100%
+    m = up.astype(float) * base
+    if k is not None:
+        m = m.where(~boost, 1.0) * up
+    pos = (cap * m).shift(1).fillna(0.0)
+    c = cost_bps.reindex(px.columns).fillna(5.0) / 1e4
+    r = (pos * ret).sum(axis=1) - (pos.diff().abs().fillna(0.0) * c).sum(axis=1)
+    live = (cap.sum(axis=1) > 0).shift(1, fill_value=False)
+    expo = pos.sum(axis=1)[live]
+    # 状态层面：同样是"趋势向上"，加注状态的日收益（按波动率归一）是否更高
+    z = (ret / (vol.shift(1) / sqrt(252)))
+    b1 = z.where(boost.shift(1, fill_value=False) & up.shift(1, fill_value=False)).stack()
+    b0 = z.where(~boost.shift(1, fill_value=False) & up.shift(1, fill_value=False)).stack()
+    return {"ret": r[live], "avg_exposure": float(expo.mean()), "max_exposure": float(expo.max()),
+            "pct_days_any_boost": float((boost.any(axis=1))[live].mean()),
+            "boost_share_of_up_days": float(len(b1) / max(1, len(b1) + len(b0))),
+            "z_boost": float(b1.mean()) if len(b1) else np.nan, "z_base": float(b0.mean()) if len(b0) else np.nan,
+            "z_boost_sharpe": float(b1.mean() / b1.std() * sqrt(252)) if len(b1) > 50 else np.nan,
+            "z_base_sharpe": float(b0.mean() / b0.std() * sqrt(252)) if len(b0) > 50 else np.nan,
+            "boost_asset_days": int(len(b1))}

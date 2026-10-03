@@ -49,3 +49,17 @@ def test_panel_business_days():
     d = {"X": pd.DataFrame({"close": [1.0, 2, 3]}, index=pd.to_datetime(["2024-01-05", "2024-01-06", "2024-01-08"]))}
     p = panel(d)
     assert list(p["X"]) == [1.0, 3.0]
+
+
+def test_boost_no_leverage_and_no_lookahead():
+    from trendbt.lab import run_boost
+    px = _px(seed=5, drift=0.0002)
+    cost = pd.Series(5.0, index=px.columns)
+    a = run_boost(px, cost, k=0.5)
+    assert a["max_exposure"] <= 1.0 + 1e-9 and a["avg_exposure"] < 1.0
+    b = run_boost(px.iloc[:2000], cost, k=0.5)["ret"]
+    assert np.allclose(a["ret"].reindex(b.index).to_numpy(), b.to_numpy())
+    base = run_boost(px, cost, k=None)
+    full = run_boost(px, cost, k=None, base=1.0)
+    assert abs(stats(base["ret"])["sharpe"] - stats(full["ret"])["sharpe"]) < 0.05
+    assert a["avg_exposure"] >= base["avg_exposure"]
