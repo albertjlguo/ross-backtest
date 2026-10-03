@@ -57,8 +57,9 @@ INST = {  # 时点值（资产负债表）
 ANNUAL_FORMS = {"10-K", "10-K/A", "20-F", "40-F", "10-KT"}
 
 
-def _series(facts: dict, tag: str, duration: bool) -> pd.Series:
-    """某个标签的年度序列：index = 财年截止日，值 = 最新披露的数。"""
+def _series(facts: dict, tag: str, duration: bool, first: bool = False, with_filed: bool = False):
+    """某个标签的年度序列：index = 财年截止日。first=False 取最新披露的数（含后来的重述）；
+    first=True 取最早披露的数（当时能看到的），用于历史检验，避免偷看重述。"""
     node = facts.get("us-gaap", {}).get(tag) or facts.get("dei", {}).get(tag)
     if not node:
         return pd.Series(dtype=float)
@@ -81,17 +82,44 @@ def _series(facts: dict, tag: str, duration: bool) -> pd.Series:
     if not rows:
         return pd.Series(dtype=float)
     df = pd.DataFrame(rows, columns=["end", "filed", "val"]).sort_values(["end", "filed"])
-    s = df.groupby("end")["val"].last()
+    g = df.groupby("end")
+    s = g["val"].first() if first else g["val"].last()
     s.index = pd.to_datetime(s.index)
+    if with_filed:
+        f = pd.to_datetime(g["filed"].first()); f.index = pd.to_datetime(f.index)
+        return s, f
     return s
 
 
-def _pick(facts: dict, tags: list[str], duration: bool) -> pd.Series:
+def _pick(facts: dict, tags: list[str], duration: bool, first: bool = False) -> pd.Series:
     out = pd.Series(dtype=float)
     for t in tags:
-        s = _series(facts, t, duration)
+        s = _series(facts, t, duration, first)
         out = s if out.empty else out.combine_first(s)
     return out
+
+
+def annual_table_pit(js: dict) -> pd.DataFrame:
+    """历史检验用：每个财年取"最早披露"的数，并带上该年报的申报日 filed。"""
+    facts = (js or {}).get("facts", {})
+    cols = {k: _pick(facts, v, True, first=True) for k, v in DUR.items()}
+    cols.update({k: _pick(facts, v, False, first=True) for k, v in INST.items()})
+    df = pd.DataFrame(cols).sort_index()
+    if df.empty or "net_income" not in df:
+        return pd.DataFrame()
+    filed = pd.Series(dtype="datetime64[ns]")
+    for t in DUR["net_income"] + DUR["revenue"]:
+        r = _series(facts, t, True, first=True, with_filed=True)
+        if isinstance(r, tuple):
+            filed = r[1] if filed.empty else filed.combine_first(r[1])
+    df = df.loc[df["net_income"].notna() | df["revenue"].notna()]
+    df["filed"] = filed.reindex(df.index)
+    df = df[df["filed"].notna()]
+    # 同一财年可能有 52/53 周两种截止日：相隔不到 300 天的只留后一条
+    keep = [i for i, d in enumerate(df.index) if i == len(df) - 1 or (df.index[i + 1] - d).days > 300]
+    df = df.iloc[keep]
+    df.index.name = "fy_end"
+    return df
 
 
 def annual_table(js: dict) -> pd.DataFrame:
