@@ -1,0 +1,15 @@
+,xs_mom|crypto,xs_rev|crypto,lowvol|crypto,xs_mom|etf_index,xs_rev|etf_index,lowvol|etf_index,xs_mom|stocks,xs_rev|stocks,lowvol|stocks,bh_vt|ALL,ma200|ALL,tsmom12|ALL,trend4|ALL,trend4_lo|ALL
+xs_mom|crypto,,,,,,,,,,,,,,
+xs_rev|crypto,,,,,,,,,,,,,,
+lowvol|crypto,,,,,,,,,,,,,,
+xs_mom|etf_index,,,,,,,,,,,,,,
+xs_rev|etf_index,,,,,,,,,,,,,,
+lowvol|etf_index,,,,,,,,,,,,,,
+xs_mom|stocks,,,,,,,1.0,-0.05,-0.12,-0.05,0.04,0.1,0.12,0.09
+xs_rev|stocks,,,,,,,-0.05,1.0,-0.06,0.03,0.02,0.08,0.03,0.03
+lowvol|stocks,,,,,,,-0.12,-0.06,1.0,0.04,0.08,0.12,0.11,0.06
+bh_vt|ALL,,,,,,,-0.05,0.03,0.04,1.0,0.89,0.62,0.58,0.82
+ma200|ALL,,,,,,,0.04,0.02,0.08,0.89,1.0,0.73,0.77,0.9
+tsmom12|ALL,,,,,,,0.1,0.08,0.12,0.62,0.73,1.0,0.8,0.76
+trend4|ALL,,,,,,,0.12,0.03,0.11,0.58,0.77,0.8,1.0,0.89
+trend4_lo|ALL,,,,,,,0.09,0.03,0.06,0.82,0.9,0.76,0.89,1.0

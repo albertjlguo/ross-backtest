@@ -1,0 +1,39 @@
+{
+ "generated": "2026-10-03T14:08:34.270507+00:00",
+ "trials": 34,
+ "t_threshold": 3.18,
+ "params": {
+  "target_vol": 0.1,
+  "vol_span": 60,
+  "max_lev": 3.0,
+  "rebal": 5,
+  "min_assets": 4,
+  "min_hist": 273
+ },
+ "groups": {
+  "crypto": [
+   "BTC"
+  ],
+  "etf_index": [
+   "QQQ"
+  ],
+  "stocks": [
+   "META",
+   "TSLA",
+   "BRK-B",
+   "MA"
+  ],
+  "ALL": [
+   "BTC",
+   "QQQ",
+   "META",
+   "TSLA",
+   "BRK-B",
+   "MA"
+  ],
+  "ALL_ex_stocks": [
+   "BTC",
+   "QQQ"
+  ]
+ }
+}
